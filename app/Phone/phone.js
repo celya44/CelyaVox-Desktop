@@ -1736,6 +1736,16 @@ function InitUi(){
     // Custom Web hook
     if(typeof web_hook_on_init !== 'undefined') web_hook_on_init();
 
+    // Afficher le pavé de numérotation au démarrage (même vue que le bouton "Call")
+    // Respecte l'option DisableFreeDial si le numéroteur libre est désactivé.
+    try {
+        if(DisableFreeDial !== true) {
+            ShowDial();
+        }
+    } catch(e) {
+        console.warn("Impossible d'afficher le pavé de numérotation au chargement:", e);
+    }
+
     CreateUserAgent();
 }
 function ShowMyProfileMenu(obj){
@@ -3530,6 +3540,17 @@ function teardownSession(lineObj) {
 
     // Custom Web hook
     if(typeof web_hook_on_terminate !== 'undefined') web_hook_on_terminate(session);
+
+    // Revenir au clavier téléphonique s'il n'y a plus aucun appel actif
+    try {
+        window.setTimeout(function(){
+            if(countSessions("0") === 0){
+                ShowDial();
+            }
+        }, 1200); // attendre la suppression de la ligne (RemoveLine)
+    } catch(e) {
+        // no-op
+    }
 }
 
 // Mic and Speaker Levels

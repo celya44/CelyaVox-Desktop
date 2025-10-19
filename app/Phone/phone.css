@@ -138,6 +138,95 @@
     cursor: default;
 }
 
+/* Bandeau bas moderne */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: center;
+    background: rgba(250, 250, 250, 0.9);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(0,0,0,0.08);
+    z-index: 1000;
+}
+.bottom-nav__item {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-family: Roboto, Arial, Helvetica;
+    color: #334155;
+    font-size: 12px;
+    cursor: pointer;
+}
+.bottom-nav__item:focus { outline: none; }
+.bottom-nav__item:hover { background: rgba(0,0,0,0.04); }
+.bottom-nav__icon { font-size: 18px; line-height: 1; }
+.bottom-nav__label { line-height: 1; }
+
+@media (prefers-color-scheme: dark) {
+    .bottom-nav {
+        background: rgba(30, 30, 30, 0.85);
+        border-top-color: rgba(255,255,255,0.08);
+    }
+    .bottom-nav__item { color: #e5e7eb; }
+    .bottom-nav__item:hover { background: rgba(255,255,255,0.06); }
+}
+
+/* Panneau latéral gauche */
+.sidepanel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 320px;
+    background: #ffffff;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+}
+.with-bottom-nav .sidepanel {
+    bottom: 64px; /* éviter la superposition avec .bottom-nav (64px) */
+}
+.sidepanel--open { transform: translateX(0); }
+.sidepanel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.sidepanel__title { font-weight: 600; }
+.sidepanel__close {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+.sidepanel__content {
+    padding: 8px 0;
+    overflow: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+    .sidepanel { background: #1e1e1e; }
+    .sidepanel__header { border-bottom-color: rgba(255,255,255,0.1); }
+}
+
 .UiDeleteButton{
     color: #ac2121;
     border: 1px solid #ac2121;
@@ -224,6 +313,20 @@ body {
     margin-top: 0px;
     margin-bottom: 0px;
     padding: 0px;
+    /* Animation douce quand le panneau latéral pousse le contenu */
+    transition: padding-left 220ms ease;
+}
+
+/* Réserver la place de la barre du bas pour éviter la superposition */
+body.with-bottom-nav .pageContainer {
+    padding-bottom: 64px; /* hauteur du bandeau .bottom-nav */
+    box-sizing: border-box;
+}
+
+/* Quand le panneau gauche est ouvert, pousser la zone centrale (#Phone) */
+body.sidepanel-open #Phone {
+    padding-left: 320px; /* largeur du panneau latéral */
+    box-sizing: border-box;
 }
 
 .smallFlag {

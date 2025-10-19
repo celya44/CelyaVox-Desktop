@@ -245,7 +245,7 @@
         </script>
     </head>
 
-    <body>
+    <body class="with-bottom-nav">
         <!-- Loading Animation -->
         <div class=loading>
             <span class="fa fa-circle-o-notch fa-spin"></span>
@@ -253,12 +253,107 @@
 
         <!-- The Phone -->
         <div id=Phone></div>
+
+        <!-- Bandeau bas moderne (sans action) -->
+        <nav class="bottom-nav" role="navigation" aria-label="Navigation principale">
+            <button class="bottom-nav__item" id="nav-clavier" type="button" aria-label="Clavier">
+                <i class="fa fa-keyboard-o bottom-nav__icon" aria-hidden="true"></i>
+                <span class="bottom-nav__label">Clavier</span>
+            </button>
+            <button class="bottom-nav__item" id="nav-historique" type="button" aria-label="Historique">
+                <i class="fa fa-history bottom-nav__icon" aria-hidden="true"></i>
+                <span class="bottom-nav__label">Historique</span>
+            </button>
+            <button class="bottom-nav__item" id="nav-contacts" type="button" aria-label="Contacts">
+                <i class="fa fa-address-book bottom-nav__icon" aria-hidden="true"></i>
+                <span class="bottom-nav__label">Contacts</span>
+            </button>
+            <button class="bottom-nav__item" id="nav-favoris" type="button" aria-label="Favoris">
+                <i class="fa fa-star bottom-nav__icon" aria-hidden="true"></i>
+                <span class="bottom-nav__label">Favoris</span>
+            </button>
+            <button class="bottom-nav__item" id="nav-fonction-avance" type="button" aria-label="Fonction avancé">
+                <i class="fa fa-cogs bottom-nav__icon" aria-hidden="true"></i>
+                <span class="bottom-nav__label">Fonctions</span>
+            </button>
+        </nav>
+
+        <!-- Panneau latéral gauche -->
+        <aside id="sidepanel" class="sidepanel" aria-hidden="true" aria-live="polite">
+            <div class="sidepanel__header">
+                <span id="sidepanel-title" class="sidepanel__title"></span>
+                <button id="sidepanel-close" class="sidepanel__close" type="button" aria-label="Fermer">&times;</button>
+            </div>
+            <div id="sidepanel-content" class="sidepanel__content"></div>
+        </aside>
     </body>
 
     <!-- Loadable Scripts -->
     <script type="text/javascript" src="https://dtd6jl0d42sve.cloudfront.net/lib/jquery/jquery-3.6.1.min.js"></script>
     <script type="text/javascript" src="https://dtd6jl0d42sve.cloudfront.net/lib/jquery/jquery-ui-1.13.2.min.js"></script>
     <script type="text/javascript" src="phone.js"></script>
+
+    <!-- Script du panneau latéral (simple, sans logique fonctionnelle avancée) -->
+    <script type="text/javascript">
+    (function(){
+        function $(id){ return document.getElementById(id); }
+        var panel = $("sidepanel");
+        var titleEl = $("sidepanel-title");
+        var contentEl = $("sidepanel-content");
+        var closeBtn = $("sidepanel-close");
+        var phoneEl = $("Phone");
+        var resizeHandler = null;
+
+        function positionPanel(){
+            if(!panel || !phoneEl) return;
+            var rect = phoneEl.getBoundingClientRect();
+            // Coller le panneau au bord gauche de #Phone (il occupe la zone de padding)
+            var left = Math.round(rect.left);
+            panel.style.left = left + "px";
+        }
+
+        function openPanel(title, html){
+            titleEl.textContent = title || "";
+            contentEl.innerHTML = html || "";
+            // Coller le panneau au bord gauche de #Phone
+            positionPanel();
+            panel.classList.add("sidepanel--open");
+            panel.setAttribute("aria-hidden", "false");
+            document.body.classList.add("sidepanel-open");
+            // Ajuster si la fenêtre est redimensionnée
+            resizeHandler = function(){ positionPanel(); };
+            window.addEventListener("resize", resizeHandler);
+        }
+        function closePanel(){
+            panel.classList.remove("sidepanel--open");
+            panel.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("sidepanel-open");
+            if(resizeHandler){
+                window.removeEventListener("resize", resizeHandler);
+                resizeHandler = null;
+            }
+            // Nettoyer la position explicite (retour au CSS par défaut)
+            panel.style.left = "";
+        }
+
+        if(closeBtn) closeBtn.addEventListener("click", closePanel);
+
+        var btns = [
+            { id: "nav-clavier", title: "Clavier" },
+            { id: "nav-historique", title: "Historique" },
+            { id: "nav-contacts", title: "Contacts" },
+            { id: "nav-favoris", title: "Favoris" },
+            { id: "nav-fonction-avance", title: "Fonctions avancées" }
+        ];
+        btns.forEach(function(b){
+            var el = $(b.id);
+            if(!el) return;
+            el.addEventListener("click", function(){
+                openPanel(b.title, "<div style='padding:12px'>"+ b.title +"</div>");
+            });
+        });
+    })();
+    </script>
 
     <!-- Deferred Scripts -->
     <script type="text/javascript" src="https://dtd6jl0d42sve.cloudfront.net/lib/jquery/jquery.md5-min.js" defer="true"></script>
