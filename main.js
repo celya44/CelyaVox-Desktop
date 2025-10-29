@@ -1,7 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const initSqlJs = require('sql.js');
 
 // ----------------------
 // Command line switches
@@ -11,11 +10,7 @@ app.commandLine.appendSwitch('disable-software-rasterizer'); // fallback GPU
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true'); // bypass self-signed certs
 app.commandLine.appendSwitch('disable-web-security');        // bypass CORS
 app.commandLine.appendSwitch('no-sandbox');
-
-// ----------------------
-// Database (sql.js)
-// ----------------------
-const dbPath = path.join(app.getPath('userData'), 'sipapp.db');
+app.commandLine.appendSwitch('disable-setuid-sandbox');
 
 // ----------------------
 // Create main window

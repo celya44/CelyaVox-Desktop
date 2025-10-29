@@ -1,5 +1,5 @@
 {
-  "name": "sipapp",
+  "name": "sipapp-dev",
   "version": "1.0.0",
   "description": "Electron wrapper for SipApp",
   "main": "main.js",
@@ -9,23 +9,33 @@
     "dist": "electron-builder --linux",
     "pack": "electron-builder --dir"
   },
-  "author": "CELYA",
+  "author": {
+    "name": "CELYA",
+    "email": "debian@celya.fr"
+  },
   "license": "AGPL",
   "devDependencies": {
     "electron": "^38.2.2",
     "electron-builder": "^24.0.0"
   },
-  "dependencies": {
-    "sql.js": "^1.13.0"
-  },
   "build": {
-    "productName": "SipApp",
+    "productName": "SipApp-dev",
     "appId": "fr.celya/sipapp",
     "files": [
       "**/*",
       "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md}",
       "!**/*.map"
     ],
+    "linux": {
+	"target": [
+	    "AppImage",
+	    "deb",
+	    "rpm"
+	]
+    },
+    "extraMetadata": {
+	"main": "main.js"
+    },
     "directories": {
       "buildResources": "assets"
     },

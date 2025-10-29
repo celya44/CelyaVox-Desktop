@@ -303,6 +303,242 @@
         var closeBtn = $("sidepanel-close");
         var phoneEl = $("Phone");
         var resizeHandler = null;
+        function toArrayFromResponse(data){
+            // Déjà un tableau
+            if(Array.isArray(data)) return data;
+
+            // Si c'est une chaîne JSON (ex: "[ {...} ]"), tenter de parser
+            if(typeof data === 'string'){
+                var t = data.trim();
+                if(t.startsWith('[') || t.startsWith('{')){
+                    try{
+                        var parsed = JSON.parse(t);
+                        var arr = toArrayFromResponse(parsed);
+                        if(Array.isArray(arr)) return arr;
+                    }catch(e){ /* ignore */ }
+                }
+                return null;
+            }
+
+            if(!data || typeof data !== 'object') return null;
+
+            // Clés fréquentes
+            var keys = [ 'calls','cdr','list','items','data','rows','result','records','entries' ];
+            for(var i=0;i<keys.length;i++){
+                var k = keys[i];
+                if(!Object.prototype.hasOwnProperty.call(data,k)) continue;
+                var v = data[k];
+                if(Array.isArray(v)) return v;
+                // String JSON dans la clé (ex: data: "[ ... ]")
+                if(typeof v === 'string'){
+                    var tt = v.trim();
+                    if(tt.startsWith('[') || tt.startsWith('{')){
+                        try{
+                            var pv = JSON.parse(tt);
+                            var arr2 = toArrayFromResponse(pv);
+                            if(Array.isArray(arr2)) return arr2;
+                        }catch(e){ /* ignore */ }
+                    }
+                }
+                // Objet imbriqué
+                if(v && typeof v === 'object'){
+                    var inner = toArrayFromResponse(v);
+                    if(Array.isArray(inner)) return inner;
+                }
+            }
+
+            // Objet indexé {"0": {...}, "1": {...}}
+            var objKeys = Object.keys(data);
+            if(objKeys.length && objKeys.every(function(k){ return /^\d+$/.test(k); })){
+                return objKeys.sort(function(a,b){ return Number(a)-Number(b); }).map(function(k){ return data[k]; });
+            }
+
+            // Premier champ tableau rencontré
+            for(var p in data){
+                if(!Object.prototype.hasOwnProperty.call(data,p)) continue;
+                var val = data[p];
+                if(Array.isArray(val)) return val;
+                if(typeof val === 'string'){
+                    var ts = val.trim();
+                    if(ts.startsWith('[') || ts.startsWith('{')){
+                        try{
+                            var pa = JSON.parse(ts);
+                            var arr3 = toArrayFromResponse(pa);
+                            if(Array.isArray(arr3)) return arr3;
+                        }catch(e){ /* ignore */ }
+                    }
+                }
+                if(val && typeof val === 'object'){
+                    var inner2 = toArrayFromResponse(val);
+                    if(Array.isArray(inner2)) return inner2;
+                }
+            }
+            return null;
+        }
+
+        // Helpers
+        function getCfg(keys){
+            for(var i=0;i<keys.length;i++){
+                var v = localStorage.getItem(keys[i]);
+                if(v && String(v).trim() !== "") return v;
+            }
+            return null;
+        }
+        function escHtml(s){
+            if(s === null || s === undefined) return "";
+            return String(s)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+        function fmtDuration(sec){
+            var n = Number(sec);
+            if(!isFinite(n) || n < 0) return escHtml(sec);
+            var h = Math.floor(n/3600), m = Math.floor((n%3600)/60), s = Math.floor(n%60);
+            var parts = [];
+            if(h>0) parts.push(h);
+            parts.push((h>0? String(m).padStart(2,'0') : m));
+            parts.push(String(s).padStart(2,'0'));
+            return parts.join(":");
+        }
+        function tryDate(v){
+            if(!v) return "";
+            // handle ISO or "YYYY-MM-DD HH:mm:ss"
+            var parsed = !isNaN(Date.parse(v)) ? new Date(v) : null;
+            if(!parsed){
+                var m = /^\s*(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})\s*$/.exec(String(v));
+                if(m){ parsed = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6])); }
+            }
+            return parsed ? parsed.toLocaleString() : escHtml(v);
+        }
+        function pick(obj, candidates){
+            for(var i=0;i<candidates.length;i++){
+                var k = candidates[i];
+                if(obj && Object.prototype.hasOwnProperty.call(obj,k) && obj[k] != null) return obj[k];
+            }
+            return "";
+        }
+        function statusIcon(status){
+            var s = String(status || '').toUpperCase();
+            // Icônes compatibles Font Awesome 4.7
+            var size = '18px';
+            if(s === 'ANSWERED') return '<i class="fa fa-check-circle" style="color:#16a34a; font-size:'+ size +';" aria-hidden="true"></i>';
+            if(s === 'NO ANSWER' || s === 'NOANSWER') return '<i class="fa fa-clock-o" style="color:#d97706; font-size:'+ size +';" aria-hidden="true"></i>';
+            if(s === 'BUSY') return '<i class="fa fa-exclamation-circle" style="color:#d97706; font-size:'+ size +';" aria-hidden="true"></i>';
+            if(s === 'FAILED' || s === 'ERROR') return '<i class="fa fa-exclamation-triangle" style="color:#dc2626; font-size:'+ size +';" aria-hidden="true"></i>';
+            if(s === 'CANCELLED' || s === 'CANCELED') return '<i class="fa fa-ban" style="color:#6b7280; font-size:'+ size +';" aria-hidden="true"></i>';
+            if(s === 'VOICEMAIL' || s === 'VM' || s === 'MAIL'){ return '<i class="fa fa-envelope" style="color:#7c3aed; font-size:'+ size +';" aria-hidden="true"></i>'; }
+            if(s === 'RINGING' || s === 'PROGRESS') return '<i class="fa fa-bell-o" style="color:#2563eb; font-size:'+ size +';" aria-hidden="true"></i>';
+            return '<i class="fa fa-info-circle" style="color:#6b7280; font-size:'+ size +';" aria-hidden="true"></i>';
+        }
+    function renderHistory(items, userNo99){
+            if(!Array.isArray(items)){
+                try{
+                    return '<pre style="white-space:pre-wrap; word-break:break-word; padding:12px;">'+ escHtml(JSON.stringify(items, null, 2)) +'</pre>';
+                }catch(e){
+                    return '<div style="padding:12px;">'+ escHtml(String(items)) +'</div>';
+                }
+            }
+            if(items.length === 0){
+                return '<div style="padding:12px;">Aucun appel trouvé.</div>';
+            }
+            var html = ''+
+            '<table style="width:100%; border-collapse:collapse; font-family:Roboto, Arial, Helvetica; font-size:13px;">'+
+            '<thead><tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,0.08);">'+
+            '<th style="padding:8px 12px;">Date</th>'+
+            '<th style="padding:8px 12px;">Numéro</th>'+
+            '<th style="padding:8px 12px;">Durée</th>'+
+            '<th style="padding:8px 12px;">Statut</th>'+
+            '</tr></thead><tbody>';
+            for(var i=0;i<items.length;i++){
+                var it = items[i] || {};
+                var dateVal = pick(it, ["calldate","start","date","begintime","time"]);
+                var srcVal = pick(it, ["src","caller","from","clid"]);
+                var dstVal = pick(it, ["dst","callee","to","destination"]);
+                var durVal = pick(it, ["billsec","duration","dur"]);
+                var stVal  = pick(it, ["disposition","status","result"]);
+                var isOut  = (userNo99 && String(srcVal).trim() === String(userNo99).trim());
+                var numero = isOut ? dstVal : srcVal;
+                var badge  = isOut
+                    ? '<span style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:10px; font-size:11px; line-height:1; background:#fef3c7; color:#92400e; border:1px solid #f59e0b;"><i class="fa fa-arrow-circle-up" aria-hidden="true"></i> Sortant</span>'
+                    : '<span style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:10px; font-size:11px; line-height:1; background:#dcfce7; color:#065f46; border:1px solid #10b981;"><i class="fa fa-arrow-circle-down" aria-hidden="true"></i> Entrant</span>';
+                var callBtn = '<button type="button" class="history-call" title="Composer" data-number="'+ escHtml(numero) +'" style="appearance:none; border:0; background:transparent; color:#2563eb; cursor:pointer; padding:0;">'+ escHtml(numero) +'</button>';
+                html += '<tr style="border-bottom:1px solid rgba(0,0,0,0.04);">'+
+                    '<td style="padding:8px 12px;">'+ tryDate(dateVal) +'</td>'+
+                    '<td style="padding:8px 12px;">'+ callBtn + badge +'</td>'+
+                    '<td style="padding:8px 12px;">'+ fmtDuration(durVal) +'</td>'+
+                    '<td style="padding:8px 12px;">'+ '<span class="status-tip" data-tip="'+ escHtml(stVal) +'" aria-label="'+ escHtml(stVal) +'">'+ statusIcon(stVal) +'</span>' +'</td>'+
+                '</tr>';
+            }
+            html += '</tbody></table>';
+            return html;
+        }
+        function bindHistoryClicks(){
+            if(!contentEl) return;
+            var buttons = contentEl.querySelectorAll('.history-call');
+            buttons.forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    var num = btn.getAttribute('data-number') || '';
+                    if(num){
+                        try{ if(window.DialByLine){ window.DialByLine('audio', null, num); } }
+                        catch(e){ console.error('Dial error', e); }
+                    }
+                });
+            });
+        }
+        function bindLdapDialClicks(){
+            if(!contentEl) return;
+            var buttons = contentEl.querySelectorAll('.ldap-call');
+            buttons.forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    var num = btn.getAttribute('data-number') || '';
+                    if(num){
+                        try{ if(window.DialByLine){ window.DialByLine('audio', null, num); } }
+                        catch(e){ console.error('Dial error', e); }
+                    }
+                });
+            });
+        }
+    function loadHistory(){
+            var domain = getCfg(["SipDomain","SipDomaine"]);
+            var ext    = getCfg(["SipUsername","SipUserID","profileUserID"]);
+            var apiKey = getCfg(["api_key","ApiKey","API_KEY"]);
+            var userNo99 = (ext ? String(ext) : "").replace(/^99/, "");
+
+            openPanel("Historique des appels", '<div style="padding:12px;">Chargement…</div>');
+
+            if(!domain || !ext){
+                contentEl.innerHTML = '<div style="padding:12px; color:#b91c1c;">Configuration manquante: domaine ou extension introuvable.</div>';
+                return;
+            }
+            if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
+            // Nettoyer les slash
+            domain = domain.replace(/\/$/, "");
+
+            var url = domain + '/sipapp-api/cdr/calls?extension=' + encodeURIComponent(ext);
+            if(apiKey) url += '&api_key=' + encodeURIComponent(apiKey);
+
+            fetch(url, { method: 'GET' })
+                .then(function(res){
+                    if(!res.ok) throw new Error('HTTP '+res.status);
+                    var ct = res.headers.get('content-type') || '';
+                    if(ct.indexOf('application/json') !== -1) return res.json();
+                    return res.text().then(function(t){
+                        try{ return JSON.parse(t); }catch(e){ return t; }
+                    });
+                })
+                .then(function(data){
+                    var list = toArrayFromResponse(data) || [];
+                    contentEl.innerHTML = renderHistory(list, userNo99);
+                        sizePanelToContent();
+                    bindHistoryClicks();
+                })
+                .catch(function(err){
+                    contentEl.innerHTML = '<div style="padding:12px; color:#b91c1c;">Impossible de charger l\'historique ('+ escHtml(err.message) +').<br/>Vérifiez le domaine, la clé API et les droits CORS.</div>';
+                });
+        }
 
         function positionPanel(){
             if(!panel || !phoneEl) return;
@@ -312,16 +548,27 @@
             panel.style.left = left + "px";
         }
 
+        function sizePanelToContent(){
+            if(!panel || !contentEl) return;
+            var table = contentEl.querySelector('table');
+            var desiredW = 320; // valeur par défaut
+            if(table){ desiredW = Math.ceil(table.getBoundingClientRect().width) + 24; }
+            desiredW = Math.max(280, Math.min(desiredW, 520));
+            document.body.style.setProperty('--sidepanel-w', desiredW + 'px');
+            panel.style.width = desiredW + 'px';
+        }
+
         function openPanel(title, html){
             titleEl.textContent = title || "";
             contentEl.innerHTML = html || "";
             // Coller le panneau au bord gauche de #Phone
             positionPanel();
+            sizePanelToContent();
             panel.classList.add("sidepanel--open");
             panel.setAttribute("aria-hidden", "false");
             document.body.classList.add("sidepanel-open");
             // Ajuster si la fenêtre est redimensionnée
-            resizeHandler = function(){ positionPanel(); };
+            resizeHandler = function(){ positionPanel(); sizePanelToContent(); };
             window.addEventListener("resize", resizeHandler);
         }
         function closePanel(){
@@ -334,6 +581,8 @@
             }
             // Nettoyer la position explicite (retour au CSS par défaut)
             panel.style.left = "";
+            panel.style.width = "";
+            document.body.style.removeProperty('--sidepanel-w');
         }
 
         if(closeBtn) closeBtn.addEventListener("click", closePanel);
@@ -349,7 +598,539 @@
             var el = $(b.id);
             if(!el) return;
             el.addEventListener("click", function(){
-                openPanel(b.title, "<div style='padding:12px'>"+ b.title +"</div>");
+                if(b.id === 'nav-clavier'){
+                    // Ouvrir directement le pavé de numérotation de l'application
+                    // Ferme le panneau latéral si ouvert, puis appelle ShowDial()
+                    try { closePanel(); } catch(e) {}
+                    if (typeof window.ShowDial === 'function') {
+                        window.ShowDial();
+                    } else {
+                        // Repli: si ShowDial n'est pas chargé, garder le comportement précédent
+                        openPanel(b.title, "<div style='padding:12px'>"+ b.title +"</div>");
+                    }
+                } else if(b.id === 'nav-historique'){
+                    loadHistory();
+                } else {
+                    if(b.id === 'nav-contacts'){
+                        // Affiche une zone dédiée pour la recherche/contact: divFindBuddy avec un champ txtFindBuddy
+                        openPanel(
+                            b.title,
+                            "<div id='divFindBuddyContacts' style='padding:12px; overflow-x:hidden;'>"
+                            + "<label for='txtFindBuddyContacts' style='display:block; font-size:13px; color:#374151; margin-bottom:6px;'>Rechercher un contact</label>"
+                            + "<input id='txtFindBuddyContacts' type='text' placeholder='Nom (ex: jpr), numéro…' autocomplete='off'"
+                            + " style='display:block; width:100%; max-width:100%; box-sizing:border-box; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px;' />"
+                            + "<div id='ldapResultsContacts' style='margin-top:10px; min-height:24px;'></div>"
+                            + "</div>"
+                        );
+
+                        // Câblage: recherche LDAP au fil de la saisie
+                        (function(){
+                            function debounce(fn, ms){
+                                var t; return function(){ var ctx=this, args=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(ctx,args); }, ms); };
+                            }
+                            function renderLdapItems(items){
+                                if(!Array.isArray(items) || items.length === 0){
+                                    return "<div>Aucun résultat.</div>";
+                                }
+                                var h = "<ul style='list-style:none; margin:0; padding:0;'>";
+                                for(var i=0;i<items.length;i++){
+                                    var it = items[i] || {};
+                                    // Priorité du libellé: name > displayName > cn > givenName+sn > dn > Contact
+                                    var plainName = (it.name
+                                                     || it.displayName
+                                                     || it.cn
+                                                     || ((it.givenName||'') + ' ' + (it.sn||''))
+                                                     || it.dn
+                                                     || 'Contact');
+                                    var name = escHtml(String(plainName).trim());
+                                    // Récupérer plusieurs numéros: telephoneNumber et mobile (et homePhone si présent)
+                                    function toList(v){
+                                        if(v == null) return [];
+                                        if(Array.isArray(v)) return v.map(function(x){ return String(x); });
+                                        return [ String(v) ];
+                                    }
+                                    var nums = [];
+                                    var telList = toList(it.telephoneNumber);
+                                    var mobList = toList(it.mobile);
+                                    var homeList = toList(it.homePhone);
+                                    telList.forEach(function(n){ if(n && nums.indexOf(n) === -1) nums.push(n); });
+                                    mobList.forEach(function(n){ if(n && nums.indexOf(n) === -1) nums.push(n); });
+                                    homeList.forEach(function(n){ if(n && nums.indexOf(n) === -1) nums.push(n); });
+
+                                    var mail = escHtml(it.mail || '');
+                                    h += "<li style='border-bottom:1px solid rgba(0,0,0,0.06); padding:10px 0;'>"
+                                        + "<div style='font-weight:500;'>"+ name +"</div>"
+                                        + (nums.length ? nums.map(function(n){
+                                              var label = '';
+                                              if(mobList.indexOf(n) !== -1) label = " <span style=\"margin-left:6px; font-size:11px; color:#065f46; background:#dcfce7; border:1px solid #10b981; border-radius:10px; padding:1px 6px;\">Mobile</span>";
+                                              else if(telList.indexOf(n) !== -1) label = " <span style=\"margin-left:6px; font-size:11px; color:#1f2937; background:#e5e7eb; border:1px solid #d1d5db; border-radius:10px; padding:1px 6px;\">Téléphone</span>";
+                                              else if(homeList.indexOf(n) !== -1) label = " <span style=\"margin-left:6px; font-size:11px; color:#6b7280; background:#f3f4f6; border:1px solid #e5e7eb; border-radius:10px; padding:1px 6px;\">Domicile</span>";
+                                              var callBtn = "<button type=\"button\" class=\"ldap-call\" data-number=\""+ escHtml(n) +"\" style=\"appearance:none; border:0; background:transparent; color:#2563eb; cursor:pointer; padding:0;\">"+ escHtml(n) +"</button>";
+                                              return "<div style='margin-top:2px; color:#374151; font-size:13px;'><i class='fa fa-phone'></i> " + callBtn + label + "</div>";
+                                            }).join('') : "")
+                                        + (mail ? "<div style='margin-top:2px; color:#374151; font-size:13px;'><i class='fa fa-envelope'></i> "+ mail +"</div>" : "")
+                                        + "</li>";
+                                }
+                                h += "</ul>";
+                                return h;
+                            }
+                            // Fonction réutilisable pour effectuer la recherche LDAP par sn (nom de famille)
+                            // Équivalent à: ldapsearch -x -H ldap://freepbx17-dev.celya.fr -b "ou=Phonebook,dc=freepbx,dc=fr" -D "cn=phonebook_user,dc=freepbx,dc=fr" "(&(sn=*<q>*)(objectClass=inetOrgPerson))" -w <pass>
+                            window.searchLdapBySn = function(q){
+                                q = (q||'').trim();
+                                // 1) Si un handler Electron IPC 'ldap-search' existe (plus tard), l'utiliser
+                                if(window.env && window.env.isElectron === true && window.electron && typeof window.electron.invoke === 'function'){
+                                    return window.electron.invoke('ldap-search', q).catch(function(e){ return { ok:false, error:e && e.message ? e.message : String(e) }; });
+                                }
+                                // 2) Fallback HTTP: utilisez localStorage.LdapSearchUrl (ou défaut vers le domaine FreePBX fourni)
+                                try{
+                                    var base = localStorage.getItem('LdapSearchUrl');
+                                    if(!base){
+                                        // Construire depuis SipDomain si possible, sinon utiliser l'URL fournie par défaut
+                                        var domain = getCfg(["SipDomain","SipDomaine"]) || 'http://freepbx17-dev.celya.fr';
+                                        if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
+                                        domain = domain.replace(/\/$/, '');
+                                        base = domain + '/sipapp-api/ldap/contacts';
+                                    }
+                                    var u = new URL(base, window.location.origin);
+                                    // Paramètre de recherche (sn)
+                                    u.searchParams.set('sn', q);
+                                    // Ajouter la clé API si disponible
+                                    var apiKey = getCfg(["api_key","ApiKey","API_KEY"]);
+                                    if(apiKey) u.searchParams.set('api_key', apiKey);
+                                    var headers = {};
+                                    var bearer = localStorage.getItem('LdapBearer');
+                                    var basicUser = localStorage.getItem('LdapUser');
+                                    var basicPass = localStorage.getItem('LdapPass');
+                                    if(bearer){ headers['Authorization'] = 'Bearer ' + bearer; }
+                                    else if(basicUser || basicPass){ headers['Authorization'] = 'Basic ' + btoa(String(basicUser||'') + ':' + String(basicPass||'')); }
+                                    return fetch(u.toString(), { headers: headers })
+                                        .then(function(res){ if(!res.ok) throw new Error('HTTP '+res.status); return res.json(); })
+                                        .then(function(js){
+                                            // Tenter d'extraire un tableau générique via l'utilitaire toArrayFromResponse
+                                            var items = toArrayFromResponse(js) || [];
+                                            return { ok:true, items: items };
+                                        })
+                                        .catch(function(err){ return { ok:false, error: err.message || String(err) }; });
+                                }catch(e){
+                                    return Promise.resolve({ ok:false, error: e && e.message ? e.message : String(e) });
+                                }
+                            };
+
+                            var input = $('txtFindBuddyContacts');
+                            var results = $('ldapResultsContacts');
+                            if(!input || !results) return;
+                            var doSearch = debounce(function(){
+                                var q = input.value || '';
+                                if(q.trim().length < 2){ results.innerHTML = "<div>Saisissez au moins 2 caractères…</div>"; sizePanelToContent(); return; }
+                                results.innerHTML = "<div><span class='fa fa-circle-o-notch fa-spin'></span> Recherche…</div>";
+                                window.searchLdapBySn(q).then(function(resp){
+                                    if(!resp || resp.ok !== true){
+                                        var msg = (resp && resp.error) ? resp.error : 'Erreur inconnue';
+                                        results.innerHTML = "<div style='color:#b91c1c;'>"+ escHtml(msg) +"</div>";
+                                    } else {
+                                        results.innerHTML = renderLdapItems(resp.items || []);
+                                        bindLdapDialClicks();
+                                    }
+                                    sizePanelToContent();
+                                }).catch(function(err){
+                                    results.innerHTML = "<div style='color:#b91c1c;'>"+ escHtml(err && err.message ? err.message : String(err)) +"</div>";
+                                    sizePanelToContent();
+                                });
+                            }, 350);
+                            input.addEventListener('input', doSearch);
+                            input.focus();
+                        })();
+                    } else if (b.id === 'nav-favoris'){
+                        // Panneau Favoris avec bouton ADD et recherche via API contacts, création d'un buddy avec abonnement
+                        openPanel(
+                            b.title,
+                            "<div id='favoritesPanel' style='padding:12px; overflow-x:hidden;'>"
+                            +   "<div style='display:flex; align-items:center; gap:10px; margin-bottom:10px;'>"
+                            +       "<div id='favHelp' style='color:#6b7280; font-size:13px;'>Cliquez sur ADD pour ajouter un favori depuis l'annuaire.</div>"
+                            +       "<button id='favAddBtn' type='button' class='UiButton' title='Ajouter un favori'"
+                            +           " style='padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; background:#f9fafb; cursor:pointer;'>"
+                            +           "<i class='fa fa-plus'></i> ADD"
+                            +       "</button>"
+                            +   "</div>"
+                            +   "<div id='favList' style='margin-bottom:12px;'></div>"
+                            +   "<div id='favSearchZone' style='display:none;'>"
+                            +       "<label for='txtFindFavorite' style='display:block; font-size:13px; color:#374151; margin-bottom:6px;'>Rechercher dans l'annuaire</label>"
+                            +       "<input id='txtFindFavorite' type='text' placeholder='Nom ou extension…' autocomplete='off'"
+                            +           " style='display:block; width:100%; max-width:100%; box-sizing:border-box; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px;' />"
+                            +       "<div id='favResults' style='margin-top:10px; min-height:24px;'></div>"
+                            +   "</div>"
+                            + "</div>"
+                        );
+
+                        (function(){
+                            function debounce(fn, ms){ var t; return function(){ var ctx=this, args=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(ctx,args); }, ms); }; }
+                            function esc(s){ return escHtml(s); }
+
+                            // Vérifie si une extension est déjà épinglée en favori (Pinned=true)
+                            function isExtAlreadyPinned(ext){
+                                if(!ext) return false;
+                                var pid = getCfg(['profileUserID']) || localStorage.getItem('profileUserID');
+                                if(!pid) return false;
+                                try{
+                                    var raw = localDB.getItem(pid + '-Buddies');
+                                    var js = raw ? JSON.parse(raw) : null;
+                                    var rows = (js && Array.isArray(js.DataCollection)) ? js.DataCollection : [];
+                                    var extStr = String(ext).trim();
+                                    return rows.some(function(x){
+                                        if(!x || x.Pinned !== true) return false;
+                                        var e = String(x.ExtensionNumber || x.ExtNo || '').trim();
+                                        return e !== '' && e === extStr;
+                                    });
+                                }catch(e){ return false; }
+                            }
+
+                            // Retourne la ligne Buddy (DataCollection) correspondant à l'extension si elle existe (pinned ou non)
+                            function findBuddyRowByExt(ext){
+                                if(!ext) return null;
+                                var pid = getCfg(['profileUserID']) || localStorage.getItem('profileUserID');
+                                if(!pid) return null;
+                                try{
+                                    var raw = localDB.getItem(pid + '-Buddies');
+                                    var js = raw ? JSON.parse(raw) : null;
+                                    var rows = (js && Array.isArray(js.DataCollection)) ? js.DataCollection : [];
+                                    var extStr = String(ext).trim();
+                                    for(var i=0;i<rows.length;i++){
+                                        var x = rows[i];
+                                        if(!x) continue;
+                                        var e = String(x.ExtensionNumber || x.ExtNo || '').trim();
+                                        if(e !== '' && e === extStr) return x;
+                                    }
+                                    return null;
+                                }catch(e){ return null; }
+                            }
+
+                            // Recherche via API Contact configurable
+                            // Utilise localStorage.ContactSearchUrl si défini, sinon tente /sipapp-api/contacts/search puis fallback LDAP /sipapp-api/ldap/contacts
+                            window.searchContactsApi = function(q){
+                                q = (q||'').trim();
+                                try{
+                                    var domain = getCfg(["SipDomain","SipDomaine"]) || 'http://freepbx17-dev.celya.fr';
+                                    if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
+                                    domain = domain.replace(/\/$/, '');
+                                    var base = localStorage.getItem('ContactSearchUrl') || (domain + '/sipapp-api/contacts/search');
+                                    var u = new URL(base, window.location.origin);
+                                    // Essayer paramètres courants
+                                    // q générique
+                                    u.searchParams.set('q', q);
+                                    // sn pour compat LDAP si l’URL cible l’API LDAP
+                                    u.searchParams.set('sn', q);
+                                    var apiKey = getCfg(["api_key","ApiKey","API_KEY"]);
+                                    if(apiKey) u.searchParams.set('api_key', apiKey);
+                                    var headers = {};
+                                    var bearer = localStorage.getItem('ContactBearer') || localStorage.getItem('LdapBearer');
+                                    var basicUser = localStorage.getItem('ContactUser') || localStorage.getItem('LdapUser');
+                                    var basicPass = localStorage.getItem('ContactPass') || localStorage.getItem('LdapPass');
+                                    if(bearer){ headers['Authorization'] = 'Bearer ' + bearer; }
+                                    else if(basicUser || basicPass){ headers['Authorization'] = 'Basic ' + btoa(String(basicUser||'') + ':' + String(basicPass||'')); }
+
+                                    return fetch(u.toString(), { headers: headers })
+                                        .then(function(res){
+                                            if(!res.ok){
+                                                // Fallback automatique sur LDAP contacts si 404/500
+                                                var fb = domain + '/sipapp-api/ldap/contacts';
+                                                var uf = new URL(fb, window.location.origin);
+                                                uf.searchParams.set('sn', q);
+                                                if(apiKey) uf.searchParams.set('api_key', apiKey);
+                                                return fetch(uf.toString(), { headers: headers });
+                                            }
+                                            return res;
+                                        })
+                                        .then(function(res){ return res.json(); })
+                                        .then(function(js){
+                                            var items = toArrayFromResponse(js) || [];
+                                            return { ok:true, items: items };
+                                        })
+                                        .catch(function(err){ return { ok:false, error: err && err.message ? err.message : String(err) }; });
+                                }catch(e){
+                                    return Promise.resolve({ ok:false, error: e && e.message ? e.message : String(e) });
+                                }
+                            };
+
+                            function bestName(it){
+                                var plain = it.name || it.displayName || it.cn || ((it.givenName||'') + ' ' + (it.sn||'')) || it.dn || it.uid || '';
+                                return String(plain || '').trim();
+                            }
+                            function pickExt(it){
+                                var cand = [ it.extension, it.ext, it.internalNumber, it.telephoneNumber, it.uid, it.sip || it.sipId ];
+                                for(var i=0;i<cand.length;i++){
+                                    var v = cand[i];
+                                    if(v == null) continue;
+                                    var s = String(v).trim();
+                                    if(/^\d{2,8}$/.test(s)) return s; // extension plausible
+                                }
+                                return null;
+                            }
+                            function toList(v){ if(v == null) return []; return Array.isArray(v) ? v : [v]; }
+                            function renderFavResults(items){
+                                if(!Array.isArray(items) || items.length===0) return "<div>Aucun résultat.</div>";
+                                var h = "<ul style='list-style:none; margin:0; padding:0;'>";
+                                for(var i=0;i<items.length;i++){
+                                    var it = items[i] || {};
+                                    var name = esc(bestName(it) || '');
+                                    var ext = pickExt(it);
+                                    var mobiles = toList(it.mobile).map(String);
+                                    var email = escHtml(it.mail || it.email || '');
+                                    var extLbl = ext ? ("<span style=\"margin-left:6px; font-size:11px; color:#1f2937; background:#e5e7eb; border:1px solid #d1d5db; border-radius:10px; padding:1px 6px;\">Ext " + esc(ext) + "</span>") : "";
+                                    var addBtn = ext ? ("<button type=\"button\" class=\"fav-add\" data-ext=\""+ esc(ext) +"\" data-name=\""+ name +"\" data-mobile=\""+ escHtml(mobiles[0]||'') +"\" data-email=\""+ email +"\" style=\"margin-top:4px; padding:4px 8px; border:1px solid #10b981; background:#ecfdf5; color:#065f46; border-radius:6px; cursor:pointer;\"><i class='fa fa-plus'></i> Ajouter</button>") : ("<span style='color:#6b7280; font-size:12px; display:inline-block; margin-top:4px;'>Aucune extension</span>");
+                                    h += "<li style='border-bottom:1px solid rgba(0,0,0,0.06); padding:10px 0;'>"
+                                        +   "<div style='font-weight:500;'>"+ name +" "+ extLbl +"</div>"
+                                        +   (mobiles.length? ("<div style='margin-top:2px; color:#374151; font-size:13px;'><i class='fa fa-phone'></i> "+ escHtml(mobiles[0]) +"</div>") : "")
+                                        +   (email? ("<div style='margin-top:2px; color:#374151; font-size:13px;'><i class='fa fa-envelope'></i> "+ email +"</div>") : "")
+                                        +   addBtn
+                                        + "</li>";
+                                }
+                                h += "</ul>";
+                                return h;
+                            }
+
+                            function renderFavList(items){
+                                if(!Array.isArray(items) || items.length === 0){
+                                    return "<div style='color:#6b7280; font-size:13px;'>Aucun favori pour le moment.</div>";
+                                }
+                                var h = "<ul style='list-style:none; margin:0; padding:0;'>";
+                                for(var i=0;i<items.length;i++){
+                                    var it = items[i];
+                                    var name = escHtml((it.DisplayName || it.CallerIDName || ''));
+                                    var ext = escHtml(it.ExtensionNumber || it.ExtNo || '');
+                                    var identity = escHtml(String(it.uID || it.cID || it.gID || ''));
+                                    var badge = ext ? ("<span style=\"margin-left:6px; font-size:11px; color:#1f2937; background:#e5e7eb; border:1px solid #d1d5db; border-radius:10px; padding:1px 6px;\">Ext "+ ext +"</span>") : "";
+                                    var dialBtn = ext ? ("<button type=\"button\" class=\"fav-dial\" data-number=\""+ ext +"\" title=\"Appeler\" style=\"margin-left:8px; padding:2px 6px; border:1px solid #d1d5db; background:#fff; border-radius:6px; cursor:pointer;\"><i class='fa fa-phone'></i></button>") : "";
+                                    var remBtn = identity ? ("<button type=\"button\" class=\"fav-remove\" data-id=\""+ identity +"\" title=\"Retirer des favoris\" style=\"margin-left:6px; padding:2px 6px; border:1px solid #ef4444; background:#fef2f2; color:#991b1b; border-radius:6px; cursor:pointer;\"><i class='fa fa-times'></i></button>") : "";
+                                    var presDot = identity ? ("<span id='fav-pres-"+ identity +"' title='' aria-label=''"
+                                                     + " style=\"display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;margin-right:6px;vertical-align:middle;\"></span>") : "";
+                                    var presText = identity ? ("<span id='fav-pres-text-"+ identity +"' style=\"margin-left:8px; font-size:12px; color:#6b7280;\"></span>") : "";
+                                    h += "<li data-fav-id='"+ identity +"' style='border-bottom:1px solid rgba(0,0,0,0.06); padding:8px 0; display:flex; align-items:center; justify-content:space-between;'>"
+                                        +   "<div>"+ presDot +"<strong>"+ name +"</strong> "+ badge + presText +"</div>"
+                                        +   "<div>"+ dialBtn + remBtn +"</div>"
+                                        + "</li>";
+                                }
+                                h += "</ul>";
+                                return h;
+                            }
+
+                            function devStateToColor(devState){
+                                switch(String(devState||'').trim()){
+                                    case 'dotOnline': return '#16a34a'; // Ready/en ligne: green
+                                    case 'dotReady': return '#16a34a';  // Ready explicit: green
+                                    case 'dotRinging': return '#f59e0b'; // ringing: orange
+                                    case 'dotInUse': return '#d97706'; // in-call: dark orange
+                                    case 'dotOnHold': return '#7c3aed'; // on hold: purple
+                                    case 'dotOffline': return '#9ca3af'; // offline: gray
+                                    default: return '#16a34a'; // default: green
+                                }
+                            }
+                            function updateFavPresenceByBuddy(buddyObj){
+                                if(!buddyObj || !buddyObj.identity) return;
+                                var el = document.getElementById('fav-pres-' + buddyObj.identity);
+                                if(!el) return;
+                                var color = devStateToColor(buddyObj.devState);
+                                el.style.background = color;
+                                var pres = buddyObj.presence || '';
+                                if(pres){
+                                    // map to localized labels if available in lang
+                                    var p = pres;
+                                    try{
+                                        if (pres === 'Not online' && window.lang) p = lang.state_not_online;
+                                        else if (pres === 'Ready' && window.lang) p = lang.state_ready;
+                                        else if (pres === 'On the phone' && window.lang) p = lang.state_on_the_phone;
+                                        else if (pres === 'Ringing' && window.lang) p = lang.state_ringing;
+                                        else if (pres === 'On hold' && window.lang) p = lang.state_on_hold;
+                                        else if (pres === 'Unavailable' && window.lang) p = lang.state_unavailable;
+                                    }catch(e){}
+                                    // Requested override: replace 'On the phone' label with 'en ligne' (case-insensitive)
+                                    try{
+                                        if(String(p).toLowerCase() === 'on the phone') p = 'en ligne';
+                                    }catch(e){}
+                                    // Requested override: replace 'Ready' label with 'Pret' (case-insensitive)
+                                    try{
+                                        if(String(p).toLowerCase() === 'ready') p = 'Pret';
+                                    }catch(e){}
+                                    el.setAttribute('title', p);
+                                    el.setAttribute('aria-label', p);
+                                    // set visible text status too
+                                    var txtEl = document.getElementById('fav-pres-text-' + buddyObj.identity);
+                                    if(txtEl) txtEl.textContent = p;
+                                }
+                            }
+                            function initFavPresence(items){
+                                if(!Array.isArray(items)) return;
+                                items.forEach(function(it){
+                                    var identity = (it && (it.uID || it.cID || it.gID)) ? String(it.uID || it.cID || it.gID) : null;
+                                    if(!identity) return;
+                                    try{
+                                        if(typeof FindBuddyByIdentity === 'function'){
+                                            var b = FindBuddyByIdentity(identity);
+                                            if(b) updateFavPresenceByBuddy(b);
+                                        }
+                                    }catch(e){ /* ignore */ }
+                                });
+                            }
+
+                            function loadFavorites(){
+                                var pid = getCfg(['profileUserID']) || localStorage.getItem('profileUserID');
+                                var favListEl = document.getElementById('favList');
+                                if(!pid || !favListEl){ return; }
+                                try{
+                                    var raw = localDB.getItem(pid + '-Buddies');
+                                    var js = raw ? JSON.parse(raw) : null;
+                                    var rows = (js && Array.isArray(js.DataCollection)) ? js.DataCollection : [];
+                                    var pins = rows.filter(function(x){ return x && x.Pinned === true; });
+                                    favListEl.innerHTML = renderFavList(pins);
+                                    // Bind dial buttons
+                                    var dialBtns = favListEl.querySelectorAll('.fav-dial');
+                                    dialBtns.forEach(function(btn){
+                                        btn.addEventListener('click', function(){
+                                            var num = btn.getAttribute('data-number') || '';
+                                            if(num && window.DialByLine){ try{ window.DialByLine('audio', null, num); } catch(e){} }
+                                        });
+                                    });
+                                    // Bind remove buttons
+                                    var remBtns = favListEl.querySelectorAll('.fav-remove');
+                                    remBtns.forEach(function(btn){
+                                        btn.addEventListener('click', function(){
+                                            var id = btn.getAttribute('data-id') || '';
+                                            if(id && typeof TogglePinned === 'function'){
+                                                try{ TogglePinned(id); } catch(e){ console.error(e); }
+                                                try{ UpdateBuddyList(); } catch(e){ console.error(e); }
+                                                loadFavorites();
+                                            }
+                                        });
+                                    });
+                                    // Init presence indicators from current buddy states
+                                    initFavPresence(pins);
+                                    sizePanelToContent();
+                                }catch(e){
+                                    console.error('loadFavorites error', e);
+                                }
+                            }
+
+                            function bindAddButtons(){
+                                if(!contentEl) return;
+                                var btns = contentEl.querySelectorAll('.fav-add');
+                                btns.forEach(function(btn){
+                                    btn.addEventListener('click', function(){
+                                        var name = btn.getAttribute('data-name') || '';
+                                        var ext  = btn.getAttribute('data-ext')  || '';
+                                        var mobile = btn.getAttribute('data-mobile') || '';
+                                        var email = btn.getAttribute('data-email') || '';
+                                        if(!/^\d{2,8}$/.test(ext)){
+                                            alert("Ce contact n'a pas d'extension interne valide.");
+                                            return;
+                                        }
+                                        // Empêcher les doublons: si déjà en favoris, avertir et ne rien faire
+                                        if(isExtAlreadyPinned(ext)){
+                                            alert('Ce favori existe déjà.');
+                                            return;
+                                        }
+                                        // Si le buddy existe déjà (non épinglé), ne pas le recréer: simplement l'épingler et s'assurer de l'abonnement
+                                        var existingRow = findBuddyRowByExt(ext);
+                                        if(existingRow){
+                                            try{
+                                                var identity = String(existingRow.uID || existingRow.cID || existingRow.gID || '');
+                                                if(identity){
+                                                    if(existingRow.Pinned !== true && typeof TogglePinned === 'function'){
+                                                        try{ TogglePinned(identity); }catch(e){}
+                                                    }
+                                                    try{ UpdateBuddyList(); }catch(e){}
+                                                    loadFavorites();
+                                                    try{
+                                                        var b = (typeof FindBuddyByIdentity === 'function') ? FindBuddyByIdentity(identity) : null;
+                                                        if(b){
+                                                            if(typeof SubscribeBuddy === 'function'){
+                                                                try{ SubscribeBuddy(b); }catch(e){}
+                                                            }
+                                                            try{ updateFavPresenceByBuddy(b); }catch(e){}
+                                                        }
+                                                    }catch(e){}
+                                                }
+                                            }catch(e){}
+                                            // Revenir à la vue par défaut du panneau Favoris
+                                            try{
+                                                setTimeout(function(){
+                                                    var favBtn = document.getElementById('nav-favoris');
+                                                    if(favBtn && typeof favBtn.click === 'function') favBtn.click();
+                                                }, 0);
+                                            }catch(e){}
+                                            return;
+                                        }
+                                        try{
+                                            // Crée un buddy type extension avec abonnement activé
+                                            var buddy = MakeBuddy('extension', true, false, true, name, ext, null, false, ext, false, false);
+                                            // Épingler en favori (persistant)
+                                            if(buddy && buddy.identity && typeof TogglePinned === 'function'){
+                                                TogglePinned(buddy.identity);
+                                            }
+                                            // Mise à jour côté UI
+                                            UpdateBuddyList();
+                                            loadFavorites();
+                                            // Mettre à jour aussitôt l'indicateur de présence si disponible
+                                            try{ updateFavPresenceByBuddy(buddy); }catch(e){}
+                                            // Revenir à l'affichage par défaut du panneau Favoris (comme si on cliquait sur le menu du bas)
+                                            try{
+                                                setTimeout(function(){
+                                                    var favBtn = document.getElementById('nav-favoris');
+                                                    if(favBtn && typeof favBtn.click === 'function') favBtn.click();
+                                                }, 0);
+                                            }catch(e){}
+                                        }catch(e){
+                                            console.error('Erreur création buddy', e);
+                                            alert('Impossible de créer le favori: ' + (e && e.message ? e.message : e));
+                                        }
+                                    });
+                                });
+                            }
+
+                            var favAddBtn = document.getElementById('favAddBtn');
+                            var favZone   = document.getElementById('favSearchZone');
+                            var favInput  = document.getElementById('txtFindFavorite');
+                            var favRes    = document.getElementById('favResults');
+                            if(!favAddBtn || !favZone) return;
+                            favAddBtn.addEventListener('click', function(){
+                                favZone.style.display = 'block';
+                                var help = document.getElementById('favHelp');
+                                if(help) help.style.display = 'none';
+                                if(favInput) favInput.focus();
+                                sizePanelToContent();
+                            });
+
+                            var doSearchFav = debounce(function(){
+                                if(!favInput || !favRes) return;
+                                var q = favInput.value || '';
+                                if(q.trim().length < 2){ favRes.innerHTML = "<div>Saisissez au moins 2 caractères…</div>"; sizePanelToContent(); return; }
+                                favRes.innerHTML = "<div><span class='fa fa-circle-o-notch fa-spin'></span> Recherche…</div>";
+                                window.searchContactsApi(q).then(function(resp){
+                                    if(!resp || resp.ok !== true){
+                                        favRes.innerHTML = "<div style='color:#b91c1c;'>"+ esc(resp && resp.error ? resp.error : 'Erreur recherche') +"</div>";
+                                    } else {
+                                        favRes.innerHTML = renderFavResults(resp.items || []);
+                                        bindAddButtons();
+                                    }
+                                    sizePanelToContent();
+                                }).catch(function(err){
+                                    favRes.innerHTML = "<div style='color:#b91c1c;'>"+ esc(err && err.message ? err.message : String(err)) +"</div>";
+                                    sizePanelToContent();
+                                });
+                            }, 350);
+                            if(favInput) favInput.addEventListener('input', doSearchFav);
+                            // Charger la liste des favoris existants dès l'ouverture
+                            loadFavorites();
+                            // Écouter les NOTIFY pour rafraîchir les présences des favoris
+                            try{
+                                window.web_hook_on_notify = function(ContentType, buddyObj, notify){
+                                    try{ updateFavPresenceByBuddy(buddyObj); }catch(e){}
+                                }
+                            }catch(e){}
+                        })();
+                    } else {
+                        openPanel(b.title, "<div style='padding:12px'>"+ b.title +"</div>");
+                    }
+                }
             });
         });
     })();

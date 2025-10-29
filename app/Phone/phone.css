@@ -206,6 +206,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
+    background: #f6f6f6;
     border-bottom: 1px solid rgba(0,0,0,0.08);
 }
 .sidepanel__title { font-weight: 600; }
@@ -219,12 +220,56 @@
 }
 .sidepanel__content {
     padding: 8px 0;
-    overflow: auto;
+    overflow: auto; /* Un seul scroll, sur le contenu */
+    max-height: calc(100vh - 64px - 48px); /* viewport - bottom bar (64) - header (~48) */
+}
+
+/* Infobulle rapide pour le statut */
+.status-tip { position: relative; display: inline-block; }
+.status-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 125%;
+    white-space: nowrap;
+    background: rgba(17, 24, 39, 0.92);
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 11px;
+    line-height: 1;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 60ms ease;
+    z-index: 1200;
+}
+.status-tip::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(125% - 4px);
+    border: 5px solid transparent;
+    border-top-color: rgba(17, 24, 39, 0.92);
+    opacity: 0;
+    transition: opacity 60ms ease;
+    z-index: 1200;
+}
+.status-tip:hover::after,
+.status-tip:hover::before { opacity: 1; }
+
+@media (prefers-color-scheme: dark) {
+    .status-tip::after { background: rgba(229, 231, 235, 0.95); color: #111827; }
+    .status-tip::before { border-top-color: rgba(229, 231, 235, 0.95); }
 }
 
 @media (prefers-color-scheme: dark) {
     .sidepanel { background: #1e1e1e; }
-    .sidepanel__header { border-bottom-color: rgba(255,255,255,0.1); }
+    .sidepanel__header {
+        background: #1e1e1e;
+        border-bottom-color: rgba(255,255,255,0.1);
+    }
 }
 
 .UiDeleteButton{
@@ -325,7 +370,7 @@ body.with-bottom-nav .pageContainer {
 
 /* Quand le panneau gauche est ouvert, pousser la zone centrale (#Phone) */
 body.sidepanel-open #Phone {
-    padding-left: 320px; /* largeur du panneau latéral */
+    padding-left: var(--sidepanel-w, 320px); /* largeur du panneau latéral */
     box-sizing: border-box;
 }
 

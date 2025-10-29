@@ -40,7 +40,7 @@ const availableLang = ["fr", "ja", "zh-hans", "zh", "ru", "tr", "nl", "es", "de"
  * Note: You can specify the assets to use below in array format
  */
 let imagesDirectory = getDbItem("imagesDirectory", "");     // Directory For Image Assets eg: images/ 
-let defaultAvatars = getDbItem("defaultAvatars", "avatars/logo.png"); 
+let defaultAvatars = getDbItem("defaultAvatars", "avatars/default.0.webp,avatars/default.1.webp,avatars/default.2.webp,avatars/default.3.webp,avatars/default.4.webp,avatars/default.5.webp,avatars/default.6.webp,avatars/default.7.webp,avatars/default.8.webp"); 
 let wallpaperLight = getDbItem("wallpaperLight", "wallpaper.light.webp");  // Wallpaper for Light Theme
 let wallpaperDark = getDbItem("wallpaperDark", "wallpaper.dark.webp");     // Wallpaper for Dark Theme
 
@@ -129,7 +129,7 @@ let RecordingLayout = getDbItem("RecordingLayout", "them-pnp");             // T
 let DidLength = parseInt(getDbItem("DidLength", 6));                 // DID length from which to decide if an incoming caller is a "contact" or an "extension".
 let MaxDidLength = parseInt(getDbItem("MaxDidLength", 16));          // Maximum length of any DID number including international dialled numbers.
 let DisplayDateFormat = getDbItem("DateFormat", "YYYY-MM-DD");       // The display format for all dates. https://momentjs.com/docs/#/displaying/
-let DisplayTimeFormat = getDbItem("TimeFormat", "H:mm:ss");        // The display format for all times. https://momentjs.com/docs/#/displaying/
+let DisplayTimeFormat = getDbItem("TimeFormat", "h:mm:ss A");        // The display format for all times. https://momentjs.com/docs/#/displaying/
 let Language = getDbItem("Language", "auto");                        // Overrides the language selector or "automatic". Must be one of availableLang[]. If not defaults to en.
 
 // Buddy Sort and Filter
@@ -1735,16 +1735,6 @@ function InitUi(){
 
     // Custom Web hook
     if(typeof web_hook_on_init !== 'undefined') web_hook_on_init();
-
-    // Afficher le pavé de numérotation au démarrage (même vue que le bouton "Call")
-    // Respecte l'option DisableFreeDial si le numéroteur libre est désactivé.
-    try {
-        if(DisableFreeDial !== true) {
-            ShowDial();
-        }
-    } catch(e) {
-        console.warn("Impossible d'afficher le pavé de numérotation au chargement:", e);
-    }
 
     CreateUserAgent();
 }
@@ -3540,17 +3530,6 @@ function teardownSession(lineObj) {
 
     // Custom Web hook
     if(typeof web_hook_on_terminate !== 'undefined') web_hook_on_terminate(session);
-
-    // Revenir au clavier téléphonique s'il n'y a plus aucun appel actif
-    try {
-        window.setTimeout(function(){
-            if(countSessions("0") === 0){
-                ShowDial();
-            }
-        }, 1200); // attendre la suppression de la ligne (RemoveLine)
-    } catch(e) {
-        // no-op
-    }
 }
 
 // Mic and Speaker Levels
@@ -4728,8 +4707,7 @@ function ReceiveNotify(notification, selfSubscribe) {
     if(notification.request.headers.length > 0 && notification.request.headers["Content-Type"] && notification.request.headers["Content-Type"][0]){
         ContentType = notification.request.headers["Content-Type"][0].parsed;
     }
-    //console.warn("Buddy JPR :", notification.request.from.uri.toString(), " Content-Type: ", ContentType, notification.request.body);
-    if (ContentType == "application/pidf+xml" || ContentType == "") {
+    if (ContentType == "application/pidf+xml") {
         // Handle Presence
         /*
         // Asterisk chan_sip
@@ -4967,7 +4945,7 @@ closed: In the context of INSTANT MESSAGES, this value means that
 
     var buddyObj = FindBuddyByObservedUser(buddy);
     if(buddyObj == null) {
-        console.warn("Buddy not found :", buddy);
+        console.warn("Buddy not found:", buddy);
         return;
     }
 
@@ -10503,7 +10481,7 @@ function CloseBuddy(buddy){
 function RemoveBuddy(buddy){
     // Check if you are on the phone etc
 
- //   CloseWindow();
+    CloseWindow();
 
     Confirm(lang.confirm_remove_buddy, lang.remove_buddy, function(){
         DoRemoveBuddy(buddy)
