@@ -264,6 +264,10 @@
                 <i class="fa fa-history bottom-nav__icon" aria-hidden="true"></i>
                 <span class="bottom-nav__label">Historique</span>
             </button>
+            <button class="bottom-nav__item" id="nav-voicemail" type="button" aria-label="Visual Voicemail">
+                <i class="fa fa-inbox bottom-nav__icon" aria-hidden="true"></i>
+                <span class="bottom-nav__label">Visual Voicemail</span>
+            </button>
             <button class="bottom-nav__item" id="nav-contacts" type="button" aria-label="Contacts">
                 <i class="fa fa-address-book bottom-nav__icon" aria-hidden="true"></i>
                 <span class="bottom-nav__label">Contacts</span>
@@ -301,8 +305,9 @@
         var titleEl = $("sidepanel-title");
         var contentEl = $("sidepanel-content");
         var closeBtn = $("sidepanel-close");
-        var phoneEl = $("Phone");
-        var resizeHandler = null;
+    var phoneEl = $("Phone");
+    var resizeHandler = null;
+    var contentResizeObserver = null;
         function toArrayFromResponse(data){
             // Déjà un tableau
             if(Array.isArray(data)) return data;
@@ -323,7 +328,7 @@
             if(!data || typeof data !== 'object') return null;
 
             // Clés fréquentes
-            var keys = [ 'calls','cdr','list','items','data','rows','result','records','entries' ];
+            var keys = [ 'calls','cdr','list','items','data','Data','rows','result','records','entries' ];
             for(var i=0;i<keys.length;i++){
                 var k = keys[i];
                 if(!Object.prototype.hasOwnProperty.call(data,k)) continue;
@@ -501,13 +506,520 @@
                 });
             });
         }
+        // ---- Visual Voicemail ----
+    function renderVoicemail(items, ctx){
+            if(!Array.isArray(items)){
+                try{ return '<pre style="white-space:pre-wrap; word-break:break-word; padding:12px;">'+ escHtml(JSON.stringify(items, null, 2)) +'</pre>'; }
+                catch(e){ return '<div style="padding:12px;">'+ escHtml(String(items)) +'</div>'; }
+            }
+            if(items.length === 0){
+                return '<div style="padding:12px;">Aucun message vocal.</div>';
+            }
+            ctx = ctx || {};
+            var audioBase = ctx.audioBase || '';
+            var apiExt    = ctx.apiExt || '';
+            var apiKey    = ctx.apiKey || '';
+            var html = ''+
+                '<table style="width:100%; border-collapse:collapse; font-family:Roboto, Arial, Helvetica; font-size:13px;">'+
+                '<thead><tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,0.08);">'+
+                '<th style="padding:8px 12px;">Date</th>'+
+                '<th style="padding:8px 12px;">Appelant</th>'+
+                '<th style="padding:8px 12px;">Durée</th>'+
+                '<th style="padding:8px 12px;">Lecture</th>'+
+                '</tr></thead><tbody>';
+            for(var i=0;i<items.length;i++){
+                var it = items[i] || {};
+                // Supporte les champs FR renvoyés par l'API: "Appelant", "Date", "duree", "fichier"
+                var dateVal = pick(it, ['origtime','time','date','Date','created','calldate']);
+                var fromVal = pick(it, ['callerid','cid','cid_num','from','src','caller','Appelant']);
+                var durVal  = pick(it, ['duration','length','len','sec','billsec','duree']);
+                var audio   = pick(it, ['url','audioUrl','recording','wav','mp3','audio','file','recording_url','fichier']);
+                var dossier = pick(it, ['folder','dossier']);
+                var fichier = pick(it, ['file','fichier']);
+                var msgId   = pick(it, ['message_id','id','uid','key']);
+
+                // Construire l'URL audio si dossier/fichier fournis
+                var audioUrl = '';
+                if(dossier && fichier && audioBase){
+                    try{
+                        var u = new URL(audioBase, window.location.origin);
+                        if(apiExt) u.searchParams.set('extension', apiExt);
+                        u.searchParams.set('dossier', String(dossier));
+                        u.searchParams.set('fichier', String(fichier));
+                        if(apiKey) u.searchParams.set('api_key', apiKey);
+                        audioUrl = u.toString();
+                    }catch(e){ /* ignore */ }
+                }
+                if(!audioUrl && audio){ audioUrl = audio; }
+                var numberBtn = '<button type="button" class="voicemail-call" data-number="'+ escHtml(fromVal) +'" style="appearance:none; border:0; background:transparent; color:#2563eb; cursor:pointer; padding:0;">'+ escHtml(fromVal) +'</button>';
+                // Gestion des cas: 1) endpoint direct binaire, 2) endpoint JSON { minetype, audio(base64) }, 3) données déjà incluses (it.minetype + it.audio)
+                var action = '';
+                var mimeInline = pick(it, ['minetype','mime','mimetype']);
+                var b64Inline  = (it && it.audio) ? String(it.audio) : '';
+                if(b64Inline && (mimeInline || '')){
+                    // Encodage direct en Data URL si c'est réellement du base64 plausible
+                    var isBase64 = /^[A-Za-z0-9+/=\r\n]+$/.test(b64Inline.replace(/\s+/g,''));
+                    if(isBase64){
+                        var dataUrl = 'data:' + escHtml(mimeInline || 'audio/wav') + ';base64,' + b64Inline.replace(/\s+/g,'');
+                        action = '<audio controls preload="metadata" style="width:220px; max-width:100%;" src="'+ dataUrl +'"></audio>';
+                    }
+                }
+                if(!action){
+                    if(audioUrl){
+                        // On diffère le chargement: on affiche un bouton explicite qui fera le fetch puis activera le player
+            var btn = '<button type="button" class="vm-load" data-endpoint="'+ escHtml(audioUrl) +'"'
+                + ' style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#f9fafb; cursor:pointer;">'
+                + '<i class="fa fa-download"></i> Lire'
+                + '</button>';
+                        var delBase = ctx.deleteBase || '';
+                        var delBtn = '';
+                        if(msgId && delBase){
+                            delBtn = '<button type="button" class="vm-delete" data-id="'+ escHtml(msgId) +'" data-endpoint="'+ escHtml(delBase) +'" data-ext="'+ escHtml(apiExt || '') +'" data-key="'+ escHtml(apiKey || '') +'"'
+                                   + ' title="Supprimer" aria-label="Supprimer ce message"'
+                                   + ' style="padding:6px 10px; border:1px solid #fecaca; border-radius:6px; background:#fef2f2; color:#b91c1c; cursor:pointer;">'
+                                   + '<i class="fa fa-trash"></i>'
+                                   + '</button>';
+                        }
+               action = '<div class="vm-audio" style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap; width:100%;">'
+                               +   btn
+                   +   '<audio controls preload="none" style="flex:1 1 auto; width:auto; min-width:240px; max-width:100%;" aria-label="Message vocal"></audio>'
+                               +   (delBtn ? delBtn : '')
+                               + '</div>';
+                    } else {
+                        action = '<span style="color:#6b7280;">(pas d\'audio)</span>';
+                    }
+                }
+                html += '<tr style="border-bottom:1px solid rgba(0,0,0,0.04);">'+
+                    '<td style="padding:8px 12px;">'+ tryDate(dateVal) +'</td>'+
+                    '<td style="padding:8px 12px;">'+ numberBtn +'</td>'+
+                    '<td style="padding:8px 12px;">'+ fmtDuration(durVal) +'</td>'+
+                    '<td style="padding:8px 12px;">'+ action +'</td>'+
+                '</tr>';
+            }
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function bindVoicemailClicks(){
+            if(!contentEl) return;
+            var buttons = contentEl.querySelectorAll('.voicemail-call');
+            buttons.forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    var num = btn.getAttribute('data-number') || '';
+                    if(num){ try{ if(window.DialByLine){ window.DialByLine('audio', null, num); } } catch(e){} }
+                });
+            });
+        }
+
+        function loadVoicemail(){
+            var domain = getCfg(["SipDomain","SipDomaine"]);
+            var ext    = getCfg(["SipUsername","SipUserID","profileUserID"]) || '';
+            // Normaliser l'extension: si SipUsername commence par 99 et a 5 caractères, retirer 99
+            var apiExt = ext;
+            try{
+                var s = String(ext || '');
+                if(/^99\d{3}$/.test(s)) apiExt = s.substring(2);
+            }catch(e){}
+            var apiKey = getCfg(["api_key","ApiKey","API_KEY"]) || '';
+
+            openPanel("Visual Voicemail", '<div style="padding:12px;">Chargement…</div>', 'voicemail');
+
+            if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
+            domain = domain.replace(/\/$/, "");
+
+            var base = localStorage.getItem('VoicemailListUrl') || (domain + '/sipapp-api/voicemail/get_messages');
+            var audioBase = localStorage.getItem('VoicemailGetUrl') || (domain + '/sipapp-api/voicemail/get_message');
+            var deleteBase = localStorage.getItem('VoicemailDeleteUrl') || (domain + '/sipapp-api/voicemail/delete_voicemail');
+            try{
+                var u = new URL(base, window.location.origin);
+                if(apiExt) u.searchParams.set('extension', apiExt);
+                if(apiKey) u.searchParams.set('api_key', apiKey);
+
+                fetch(u.toString(), { method: 'GET' })
+                    .then(function(res){
+                        if(!res.ok) throw new Error('HTTP ' + res.status);
+                        var ct = res.headers.get('content-type') || '';
+                        if(ct.indexOf('application/json') !== -1) return res.json();
+                        return res.text().then(function(t){ try{ return JSON.parse(t); }catch(e){ return t; } });
+                    })
+                    .then(function(data){
+                        var list = toArrayFromResponse(data) || [];
+                        // Si l'API renvoie un objet clé->message, préserver le message_id
+                        function mapWithIds(obj){
+                            return Object.keys(obj).map(function(k){
+                                var it = obj[k] || {};
+                                if(!it.message_id) it.message_id = k;
+                                return it;
+                            });
+                        }
+                        // Si pas d'items trouvés, tenter explicitement Data (string JSON ou objet)
+                        if((!list || list.length === 0) && data){
+                            try{
+                                var D = data.Data != null ? data.Data : data.data;
+                                if(typeof D === 'string'){
+                                    var parsed = JSON.parse(D);
+                                    var arr = toArrayFromResponse(parsed);
+                                    if(Array.isArray(arr)){
+                                        list = arr;
+                                    } else if(parsed && typeof parsed === 'object'){
+                                        // Objet d'objets => convertir en tableau en préservant l'ID
+                                        list = mapWithIds(parsed);
+                                    }
+                                } else if(D && typeof D === 'object'){
+                                    var arr2 = toArrayFromResponse(D);
+                                    if(Array.isArray(arr2)){
+                                        list = arr2;
+                                    } else {
+                                        list = mapWithIds(D);
+                                    }
+                                }
+                            }catch(e){ /* ignore */ }
+                        }
+                        // Dernier repli: si data lui-même est un objet clé->message
+                        if((!list || !list.length) && data && typeof data === 'object' && !Array.isArray(data)){
+                            try{
+                                var kList = Object.keys(data);
+                                if(kList.length && !kList.every(function(k){ return /^\d+$/.test(k); })){
+                                    list = mapWithIds(data);
+                                }
+                            }catch(e){}
+                        }
+
+                        // Affichage direct de la liste, sans entête d'analyse
+                        contentEl.innerHTML = renderVoicemail(list, { audioBase: audioBase, apiExt: apiExt, apiKey: apiKey, deleteBase: deleteBase });
+                        sizePanelToContent();
+                        bindVoicemailClicks();
+                        bindVoicemailDeleteClicks();
+                        // Préparer les lecteurs audio pour charger JSON base64 ou binaire à la demande
+                        try{ setupVoicemailPlayers(); }catch(e){}
+                    })
+                    .catch(function(err){
+                        contentEl.innerHTML = '<div style="padding:12px; color:#b91c1c;">Impossible de charger la messagerie ('+ escHtml(err.message) +').</div>';
+                    });
+            }catch(e){
+                contentEl.innerHTML = '<div style="padding:12px; color:#b91c1c;">URL invalide: '+ escHtml(e && e.message ? e.message : String(e)) +'</div>';
+            }
+        }
+        // Convertit base64 -> Blob
+        function base64ToBlob(b64, mime){
+            mime = mime || 'application/octet-stream';
+            try{
+                var byteChars = atob(b64.replace(/\s+/g, ''));
+                var byteNums = new Array(byteChars.length);
+                for(var i=0;i<byteChars.length;i++){ byteNums[i] = byteChars.charCodeAt(i); }
+                var byteArray = new Uint8Array(byteNums);
+                return new Blob([byteArray], { type: mime });
+            }catch(e){ return null; }
+        }
+        // Attache le chargement paresseux des sources audio des messages vocaux
+        function setupVoicemailPlayers(){
+            if(!contentEl) return;
+            // Helper: télécharge un endpoint (blob binaire ou JSON {minetype, audio(base64)})
+            // et affecte la source à un <audio>. Si possible, amplifie le volume via un rendu offline.
+            function loadEndpointToAudio(endpoint, aud){
+                // --- helpers d'amplification ---
+                function getVoicemailGain(){
+                    var v = parseFloat(localStorage.getItem('VoicemailGain') || '1.6');
+                    if(!isFinite(v) || v < 1) v = 1.6;
+                    return Math.min(v, 4.0);
+                }
+                function audioBufferToWav(buffer){
+                    var numOfChan = buffer.numberOfChannels;
+                    var sampleRate = buffer.sampleRate;
+                    var length = buffer.length * numOfChan * 2 + 44;
+                    var ab = new ArrayBuffer(length);
+                    var view = new DataView(ab);
+                    function writeString(view, offset, string){
+                        for (var i = 0; i < string.length; i++){
+                            view.setUint8(offset + i, string.charCodeAt(i));
+                        }
+                    }
+                    var channels = [];
+                    for (var i = 0; i < numOfChan; i++){
+                        channels.push(buffer.getChannelData(i));
+                    }
+                    // Interleave
+                    var interleaved = new Float32Array(buffer.length * numOfChan);
+                    var index = 0;
+                    var inputIndex = 0;
+                    while (index < interleaved.length){
+                        for (var i = 0; i < numOfChan; i++){
+                            interleaved[index++] = channels[i][inputIndex];
+                        }
+                        inputIndex++;
+                    }
+                    // Write WAV header
+                    writeString(view, 0, 'RIFF');
+                    view.setUint32(4, 36 + interleaved.length * 2, true);
+                    writeString(view, 8, 'WAVE');
+                    writeString(view, 12, 'fmt ');
+                    view.setUint32(16, 16, true);
+                    view.setUint16(20, 1, true); // PCM
+                    view.setUint16(22, numOfChan, true);
+                    view.setUint32(24, sampleRate, true);
+                    view.setUint32(28, sampleRate * numOfChan * 2, true);
+                    view.setUint16(32, numOfChan * 2, true);
+                    view.setUint16(34, 16, true);
+                    writeString(view, 36, 'data');
+                    view.setUint32(40, interleaved.length * 2, true);
+                    // Write PCM samples
+                    var offset = 44;
+                    for (var i = 0; i < interleaved.length; i++, offset += 2){
+                        var s = Math.max(-1, Math.min(1, interleaved[i]));
+                        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                    }
+                    return new Blob([view], { type: 'audio/wav' });
+                }
+                var decodeCtx = null;
+                function getDecodeCtx(){
+                    if(decodeCtx && decodeCtx.state !== 'closed') return decodeCtx;
+                    try{ decodeCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+                    catch(e){ decodeCtx = null; }
+                    return decodeCtx;
+                }
+                function amplifyBlobIfPossible(blob, gain){
+                    return new Promise(function(resolve){
+                        if(!blob || !(gain > 1.01)) return resolve(blob);
+                        var ctx = getDecodeCtx();
+                        if(!ctx){ return resolve(blob); }
+                        blob.arrayBuffer().then(function(arrBuf){
+                            ctx.decodeAudioData(arrBuf).then(function(audioBuf){
+                                try{
+                                    var OfflineCtx = (window.OfflineAudioContext || window.webkitOfflineAudioContext);
+                                    if(!OfflineCtx){ return resolve(blob); }
+                                    var off = new OfflineCtx(audioBuf.numberOfChannels, audioBuf.length, audioBuf.sampleRate);
+                                    var src = off.createBufferSource();
+                                    src.buffer = audioBuf;
+                                    var g = off.createGain();
+                                    g.gain.value = gain;
+                                    src.connect(g);
+                                    g.connect(off.destination);
+                                    src.start(0);
+                                    off.startRendering().then(function(rendered){
+                                        try{
+                                            var boosted = audioBufferToWav(rendered);
+                                            resolve(boosted || blob);
+                                        }catch(e){ resolve(blob); }
+                                    }).catch(function(){ resolve(blob); });
+                                }catch(e){ resolve(blob); }
+                            }).catch(function(){ resolve(blob); });
+                        }).catch(function(){ resolve(blob); });
+                    });
+                }
+                // --- téléchargement & affectation ---
+                return fetch(endpoint, { method:'GET' })
+                    .then(function(res){
+                        var ct = (res.headers && res.headers.get('content-type')) || '';
+                        if(ct.indexOf('application/json') !== -1){ return res.json().then(function(js){ return { kind:'json', data: js }; }); }
+                        return res.blob().then(function(bl){ return { kind:'blob', data: bl }; });
+                    })
+                    .then(function(pkt){
+                        if(!pkt) throw new Error('Réponse vide');
+                        var url='';
+                        var gain = getVoicemailGain();
+                        if(pkt.kind === 'blob'){
+                            return amplifyBlobIfPossible(pkt.data, gain).then(function(finalBlob){
+                                url = URL.createObjectURL(finalBlob);
+                                aud.src = url;
+                                return url;
+                            });
+                        } else {
+                            var js = pkt.data != null ? pkt.data : {};
+                            var info = extractAudioFromPayload(js);
+                            var mime = info.mime;
+                            var b64  = info.b64;
+                            if(!b64) throw new Error('Aucune donnée audio base64');
+                            var blob = base64ToBlob(b64, mime);
+                            if(!blob) throw new Error('Décodage base64 échoué');
+                            return amplifyBlobIfPossible(blob, gain).then(function(finalBlob){
+                                url = URL.createObjectURL(finalBlob);
+                                aud.src = url;
+                                return url;
+                            });
+                        }
+                    });
+            }
+            function extractAudioFromPayload(payload){
+                // payload peut être un objet ou une chaîne JSON
+                var obj = payload;
+                try{
+                    if(typeof obj === 'string'){
+                        obj = JSON.parse(obj);
+                    }
+                }catch(e){ /* ignore parse error */ }
+                // si obj.data est une string JSON, parser
+                var inner = obj && obj.data !== undefined ? obj.data : null;
+                try{
+                    if(typeof inner === 'string'){
+                        inner = JSON.parse(inner);
+                    }
+                }catch(e){ /* ignore */ }
+                var mime = (obj && (obj.minetype || obj.mimetype)) || (inner && (inner.minetype || inner.mimetype)) || 'audio/wav';
+                var b64  = (obj && obj.audio) || (inner && inner.audio) || '';
+                return { mime: mime, b64: b64 };
+            }
+            // 1) Nouveau workflow: bouton explicite
+            var btns = contentEl.querySelectorAll('button.vm-load[data-endpoint]');
+            btns.forEach(function(btn){
+                var endpoint = btn.getAttribute('data-endpoint');
+                var parent = btn.closest('.vm-audio');
+                var aud = parent ? parent.querySelector('audio') : null;
+                if(!endpoint || !aud) return;
+                var busy = false;
+                btn.addEventListener('click', function(){
+                    if(busy) return;
+                    busy = true;
+                    var oldHtml = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="fa fa-circle-o-notch fa-spin"></span> Chargement…';
+                    loadEndpointToAudio(endpoint, aud)
+                        .then(function(){
+                            // Une fois chargé, on peut masquer le bouton
+                            btn.style.display = 'none';
+                            // Et jouer sur action utilisateur
+                            aud.play().catch(function(){ /* ignore autoplay fail */ });
+                        })
+                        .catch(function(err){
+                            console.error('Chargement audio voicemail', err);
+                            alert('Impossible de lire le message: ' + (err && err.message ? err.message : err));
+                        })
+                        .finally(function(){
+                            btn.disabled = false;
+                            btn.innerHTML = oldHtml;
+                            busy = false;
+                        });
+                });
+            });
+
+            // Auto-chargement: alimenter tous les lecteurs visibles sans action utilisateur
+            (function autoFeedAll(){
+                var arr = Array.prototype.slice.call(btns || []);
+                if(!arr.length) return;
+                var concurrency = 3;
+                var i = 0;
+                var active = 0;
+                function next(){
+                    while(active < concurrency && i < arr.length){
+                        var b = arr[i++];
+                        if(!b || b.dataset.autoloaded === '1') continue;
+                        var endpoint = b.getAttribute('data-endpoint');
+                        var parent = b.closest('.vm-audio');
+                        var aud = parent ? parent.querySelector('audio') : null;
+                        if(!endpoint || !aud){ continue; }
+                        active++;
+                        b.dataset.autoloaded = '1';
+                        // Masquer le bouton puisqu'on précharge automatiquement
+                        try{ b.style.display = 'none'; }catch(e){}
+                        loadEndpointToAudio(endpoint, aud)
+                            .then(function(){
+                                // Charger les métadonnées sans autoplay
+                                try{ aud.load(); }catch(e){}
+                            })
+                            .catch(function(err){
+                                console.error('Chargement audio voicemail (auto)', err);
+                                try{
+                                    var parent = aud.parentElement;
+                                    if(parent){ parent.insertAdjacentHTML('beforeend', '<div style="color:#b91c1c; font-size:12px; margin-top:4px;">Audio indisponible</div>'); }
+                                }catch(e){}
+                            })
+                            .finally(function(){ active--; try{ sizePanelToContent(); }catch(e){} next(); });
+                    }
+                }
+                next();
+            })();
+            // 2) Compat : ancienne version qui écoutait l'event play sur un <audio data-endpoint>
+            var nodes = contentEl.querySelectorAll('audio[data-endpoint]');
+            nodes.forEach(function(aud){
+                var loaded = false;
+                var endpoint = aud.getAttribute('data-endpoint');
+                if(!endpoint) return;
+                function loadOnceAndPlay(){
+                    if(loaded) return; // déjà chargé
+                    loaded = true;
+                    fetch(endpoint, { method:'GET' })
+                        .then(function(res){
+                            var ct = (res.headers && res.headers.get('content-type')) || '';
+                            if(ct.indexOf('application/json') !== -1){ return res.json().then(function(js){ return { kind:'json', data: js }; }); }
+                            return res.blob().then(function(bl){ return { kind:'blob', data: bl }; });
+                        })
+                        .then(function(pkt){
+                            if(!pkt) throw new Error('Réponse vide');
+                            if(pkt.kind === 'blob'){
+                                var url = URL.createObjectURL(pkt.data);
+                                aud.src = url;
+                                aud.play().catch(function(){ /* ignore autoplay fail */ });
+                                return;
+                            }
+                            var js = pkt.data != null ? pkt.data : {};
+                            var info = extractAudioFromPayload(js);
+                            var mime = info.mime;
+                            var b64  = info.b64;
+                            if(!b64){ throw new Error('Aucune donnée audio base64'); }
+                            var blob = base64ToBlob(b64, mime);
+                            if(!blob) throw new Error('Décodage base64 échoué');
+                            var url2 = URL.createObjectURL(blob);
+                            aud.src = url2;
+                            aud.play().catch(function(){ /* ignore autoplay fail */ });
+                        })
+                        .catch(function(err){
+                            console.error('Chargement audio voicemail', err);
+                            try{
+                                var parent = aud.parentElement;
+                                if(parent){ parent.insertAdjacentHTML('beforeend', '<div style="color:#b91c1c; font-size:12px; margin-top:4px;">Audio indisponible</div>'); }
+                            }catch(e){}
+                        });
+                }
+                aud.addEventListener('play', loadOnceAndPlay, { once:false });
+            });
+        }
+        // Suppression d'un message vocal
+        function bindVoicemailDeleteClicks(){
+            if(!contentEl) return;
+            var btns = contentEl.querySelectorAll('.vm-delete');
+            btns.forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    var id = btn.getAttribute('data-id');
+                    var endpoint = btn.getAttribute('data-endpoint');
+                    var ext = btn.getAttribute('data-ext') || '';
+                    var apiKey = btn.getAttribute('data-key') || '';
+                    if(!id || !endpoint) return;
+                    var u;
+                    try{
+                        u = new URL(endpoint, window.location.origin);
+                    }catch(e){ return alert('URL de suppression invalide'); }
+                    u.searchParams.set('message_id', id);
+                    if(ext) u.searchParams.set('extension', ext);
+                    if(apiKey) u.searchParams.set('api_key', apiKey);
+                    var old = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="fa fa-circle-o-notch fa-spin"></span>';
+                    fetch(u.toString(), { method:'GET' })
+                        .then(function(res){
+                            if(!res.ok) throw new Error('HTTP '+res.status);
+                            return res.json().catch(function(){ return { status:'OK' }; });
+                        })
+                        .then(function(js){
+                            // On considère la suppression réussie si la réponse n'indique pas explicitement une erreur
+                            var row = btn.closest('tr');
+                            if(row){ row.remove(); try{ sizePanelToContent(); }catch(e){} }
+                        })
+                        .catch(function(err){
+                            alert('Échec de la suppression: ' + (err && err.message ? err.message : err));
+                        })
+                        .finally(function(){
+                            btn.disabled = false;
+                            btn.innerHTML = old;
+                        });
+                });
+            });
+        }
     function loadHistory(){
             var domain = getCfg(["SipDomain","SipDomaine"]);
             var ext    = getCfg(["SipUsername","SipUserID","profileUserID"]);
             var apiKey = getCfg(["api_key","ApiKey","API_KEY"]);
             var userNo99 = (ext ? String(ext) : "").replace(/^99/, "");
 
-            openPanel("Historique des appels", '<div style="padding:12px;">Chargement…</div>');
+            openPanel("Historique des appels", '<div style="padding:12px;">Chargement…</div>', 'history');
 
             if(!domain || !ext){
                 contentEl.innerHTML = '<div style="padding:12px; color:#b91c1c;">Configuration manquante: domaine ou extension introuvable.</div>';
@@ -550,19 +1062,279 @@
 
         function sizePanelToContent(){
             if(!panel || !contentEl) return;
-            var table = contentEl.querySelector('table');
-            var desiredW = 320; // valeur par défaut
-            if(table){ desiredW = Math.ceil(table.getBoundingClientRect().width) + 24; }
-            desiredW = Math.max(280, Math.min(desiredW, 520));
+            // Largeur souhaitée basée sur le contenu réel (scrollWidth),
+            // avec bornes adaptatives par type de panneau et surcharges localStorage.
+            var type = panel.getAttribute('data-type') || 'default';
+            var defaults = {
+                'voicemail': { min: 520, max: 550 },
+                'history':   { min: 420, max: 420 },
+                'contacts':  { min: 300, max: 300 },
+                'favorites': { min: 320, max: 420 },
+                'functions': { min: 420, max: 420 },
+                'default':   { min: 360, max: 560 }
+            };
+            var def = defaults[type] || defaults['default'];
+            var minPref = localStorage.getItem('SidepanelMinWidth_' + type) || localStorage.getItem('SidepanelMinWidth');
+            var maxPref = localStorage.getItem('SidepanelMaxWidth_' + type) || localStorage.getItem('SidepanelMaxWidth');
+            var minW = parseInt(minPref || String(def.min), 10);
+            var maxW = parseInt(maxPref || String(def.max), 10);
+            if(!isFinite(minW) || minW < 280) minW = 280;
+            if(!isFinite(maxW) || maxW < minW) maxW = Math.max(minW, 720);
+            var contentW = Math.ceil(contentEl.scrollWidth || 0);
+            // marge interne pour respirer
+            var desiredW = contentW > 0 ? (contentW + 24) : minW;
+            desiredW = Math.max(minW, Math.min(desiredW, maxW));
             document.body.style.setProperty('--sidepanel-w', desiredW + 'px');
             panel.style.width = desiredW + 'px';
         }
 
-        function openPanel(title, html){
+        // Fonctions avancées: DND/CF depuis l'API forward_detail
+        function loadAdvancedFunctions(){
+            var domain = getCfg(["SipDomain","SipDomaine"]);
+            var ext    = getCfg(["SipUsername","SipUserID","profileUserID"]) || '';
+            var apiKey = getCfg(["api_key","ApiKey","API_KEY"]) || '';
+            // Normaliser l'extension attendue par l'API (exemple fourni: 103). Si 99xxx, retirer 99.
+            var apiExt = ext;
+            try{ var s = String(ext||''); if(/^99\d{3}$/.test(s)) apiExt = s.substring(2); }catch(e){}
+
+            // Injecter le CSS de toggle une seule fois
+            (function ensureAdvancedToggleCss(){
+                if(document.getElementById('advanced-toggle-css')) return;
+                var css = document.createElement('style');
+                css.id = 'advanced-toggle-css';
+                css.textContent = ''
+                    + '.toggle-switch{display:inline-flex;align-items:center;gap:8px;user-select:none;}\n'
+                    + '.toggle-switch input{position:absolute;opacity:0;width:0;height:0;}\n'
+                    + '.toggle-switch .slider{position:relative;width:44px;height:24px;background:#e5e7eb;border-radius:9999px;transition:background .2s ease;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06);}\n'
+                    + '.toggle-switch .slider::before{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .2s ease;}\n'
+                    + '.toggle-switch input:checked + .slider{background:#10b981;}\n'
+                    + '.toggle-switch input:checked + .slider::before{transform:translateX(20px);}\n'
+                    + '.toggle-switch .toggle-label{font-size:12px;color:#6b7280;}\n'
+                    + '.toggle-switch input:checked ~ .toggle-label{color:#065f46;font-weight:500;}\n';
+                document.head.appendChild(css);
+            })();
+
+            openPanel('Fonctions avancées', '<div style="padding:12px;">Chargement…</div>', 'functions');
+
+            if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
+            domain = domain.replace(/\/$/, '');
+
+            var base = localStorage.getItem('ForwardDetailUrl') || (domain + '/sipapp-api/forward/forward_detail');
+            var u;
+            try{
+                u = new URL(base, window.location.origin);
+                if(apiExt) u.searchParams.set('extension', apiExt);
+                if(apiKey) u.searchParams.set('api_key', apiKey);
+            }catch(e){
+                contentEl.innerHTML = '<div style="padding:12px; color:#b91c1c;">URL invalide pour forward_detail.</div>';
+                return;
+            }
+
+            function strToBool(v){
+                if(typeof v === 'boolean') return v;
+                if(v == null) return false;
+                if(typeof v === 'number') return v !== 0;
+                var s = String(v).trim().toLowerCase();
+                if(s === '') return false;
+                var truthy = ['1','true','on','enabled','enable','active','yes','y'];
+                var falsy  = ['0','false','off','disabled','disable','inactive','no','n'];
+                if(truthy.indexOf(s) !== -1) return true;
+                if(falsy.indexOf(s)  !== -1) return false;
+                // Par défaut: toute chaîne non vide qui n'est pas explicitement falsy est considérée false ici (conservateur)
+                return false;
+            }
+
+            function extractForwardState(payload){
+                // Accepte { data: {...} } ou data en JSON string
+                var data = (payload && (payload.data != null ? payload.data : payload.Data)) || payload || {};
+                try{ if(typeof data === 'string'){ data = JSON.parse(data); } }catch(e){}
+                var obj = (data && typeof data === 'object') ? data : {};
+
+                // DND: chercher un booléen/flag plausible
+                var dnd = false;
+                var dndKeys = ['dnd','DND','do_not_disturb','dnd_enabled','dnd_status','is_dnd','enable_dnd'];
+                for(var i=0;i<dndKeys.length;i++){
+                    var k = dndKeys[i];
+                    if(Object.prototype.hasOwnProperty.call(obj,k)){
+                        dnd = strToBool(obj[k]);
+                        break;
+                    }
+                }
+
+                // CF enabled + number
+                var cfEnabled = false;
+                var cfNumber = '';
+                var cfEnableKeys = ['cf','CF','call_forward','call_forwarding','cfu_enabled','cf_enabled','call_forward_unconditional','forward_active'];
+                var cfNumberKeys = ['cf_number','cfu_number','forward_number','number','destination','to','phone'];
+                for(var j=0;j<cfEnableKeys.length;j++){
+                    var kk = cfEnableKeys[j];
+                    if(Object.prototype.hasOwnProperty.call(obj,kk)){
+                        cfEnabled = strToBool(obj[kk]);
+                        break;
+                    }
+                }
+                for(var t=0;t<cfNumberKeys.length;t++){
+                    var nk = cfNumberKeys[t];
+                    if(Object.prototype.hasOwnProperty.call(obj,nk)){
+                        var nv = obj[nk];
+                        if(nv != null){ cfNumber = String(nv); break; }
+                    }
+                }
+                // Règle demandée: le toggle CF est actif (vert) si et seulement si le numéro n'est pas vide
+                try{
+                    var trimmed = String(cfNumber || '').trim();
+                    cfEnabled = trimmed.length > 0;
+                }catch(e){}
+                return { dnd: dnd, cfEnabled: cfEnabled, cfNumber: cfNumber, raw: obj };
+            }
+
+            fetch(u.toString(), { method:'GET' })
+                .then(function(res){
+                    if(!res.ok) throw new Error('HTTP ' + res.status);
+                    var ct = res.headers.get('content-type') || '';
+                    if(ct.indexOf('application/json') !== -1) return res.json();
+                    return res.text().then(function(t){ try{ return JSON.parse(t); }catch(e){ return { data: t }; } });
+                })
+                .then(function(js){
+                    var state = extractForwardState(js || {});
+                    var html = ''
+                        + '<div style="padding:12px;">'
+                        +   '<div style="margin-bottom:12px; font-weight:500;">Paramètres de ligne</div>'
+                        +   '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px;">'
+                        +       '<div>'
+                        +           '<div style="font-weight:500;">Ne pas déranger (DND)</div>'
+                        +           '<div style="font-size:12px; color:#6b7280;">Empêche la sonnerie et les appels entrants.</div>'
+                        +       '</div>'
+                        +       '<label class="toggle-switch" aria-label="DND" role="switch">'
+                        +           '<input id="toggleDnd" type="checkbox" '+ (state.dnd ? 'checked' : '') +' />'
+                        +           '<span class="slider" aria-hidden="true"></span>'
+                        +           '<span class="toggle-label">Actif</span>'
+                        +       '</label>'
+                        +   '</div>'
+                        +   '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid #e5e7eb; border-radius:8px;">'
+                        +       '<div>'
+                        +           '<div style="font-weight:500;">Renvoi d\'appel (CFU)</div>'
+                        +           '<div style="font-size:12px; color:#6b7280;">Transfère tous les appels vers un numéro.</div>'
+                        +       '</div>'
+                        +       '<label class="toggle-switch" aria-label="CFU" role="switch">'
+                        +           '<input id="toggleCf" type="checkbox" '+ (state.cfEnabled ? 'checked' : '') +' />'
+                        +           '<span class="slider" aria-hidden="true"></span>'
+                        +           '<span class="toggle-label">Actif</span>'
+                        +       '</label>'
+                        +   '</div>'
+                        +   '<div style="margin-top:10px;">'
+                        +       '<label for="cfNumber" style="display:block; font-size:13px; color:#374151; margin-bottom:6px;">Numéro de renvoi</label>'
+                        +       '<input id="cfNumber" type="text" value="'+ escHtml(state.cfNumber || '') +'"'
+                        +           ' style="display:block; width:100%; box-sizing:border-box; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px;" />'
+                        +       '<div id="advancedMsg" style="margin-top:6px; font-size:12px; color:#6b7280;"></div>'
+                        +   '</div>'
+                        + '</div>';
+
+                    contentEl.innerHTML = html;
+                    try{
+                        // Accessibilité: synchroniser aria-checked sur les switches
+                        var dndCb = document.getElementById('toggleDnd');
+                        var dndLabel = dndCb ? dndCb.closest('label.toggle-switch') : null;
+                        if(dndCb && dndLabel){ dndLabel.setAttribute('aria-checked', dndCb.checked ? 'true' : 'false'); dndCb.addEventListener('change', function(){ dndLabel.setAttribute('aria-checked', dndCb.checked ? 'true' : 'false'); }); }
+
+                        // Helper: appel API d'édition forward (GET)
+                        var msgEl = document.getElementById('advancedMsg');
+                        function setMsg(text, isError){ if(!msgEl) return; msgEl.textContent = text || ''; msgEl.style.color = isError ? '#b91c1c' : '#6b7280'; }
+                        var saving = false;
+                        var needResave = false;
+                        function saveForward(){
+                            if(saving){ needResave = true; return; }
+                            saving = true;
+                            setMsg('Enregistrement…', false);
+                            try{
+                                var base = localStorage.getItem('ForwardEditUrl') || (domain.replace(/\/$/, '') + '/sipapp-api/forward/forward_edit');
+                                var u = new URL(base, window.location.origin);
+                                var cfCb2 = document.getElementById('toggleCf');
+                                var cfInput2 = document.getElementById('cfNumber');
+                                var dndCb2 = document.getElementById('toggleDnd');
+                                var cfOn = !!(cfCb2 && cfCb2.checked);
+                                var cfVal = (cfInput2 && typeof cfInput2.value === 'string') ? cfInput2.value.trim() : '';
+                                // Si le toggle CF est OFF, envoyer cf_number vide pour désactiver
+                                var cfToSend = cfOn ? cfVal : '';
+                                var dndToSend = (dndCb2 && dndCb2.checked) ? 'yes' : 'no';
+                                if(apiExt) u.searchParams.set('extension', apiExt);
+                                u.searchParams.set('dnd', dndToSend);
+                                u.searchParams.set('cf_number', cfToSend);
+                                if(apiKey) u.searchParams.set('api_key', apiKey);
+                                // Désactive les switches pendant l'appel
+                                try{ if(dndCb) dndCb.disabled = true; }catch(e){}
+                                var cfCbLocal = document.getElementById('toggleCf');
+                                try{ if(cfCbLocal) cfCbLocal.disabled = true; }catch(e){}
+                                fetch(u.toString(), { method:'GET' })
+                                    .then(function(res){ if(!res.ok) throw new Error('HTTP ' + res.status); return res.json().catch(function(){ return {}; }); })
+                                    .then(function(){ setMsg('Enregistré.', false); })
+                                    .catch(function(err){ setMsg('Erreur: ' + (err && err.message ? err.message : String(err)), true); })
+                                    .finally(function(){
+                                        saving = false;
+                                        try{ if(dndCb) dndCb.disabled = false; }catch(e){}
+                                        try{ if(cfCbLocal) cfCbLocal.disabled = false; }catch(e){}
+                                        if(needResave){ needResave = false; saveForward(); }
+                                    });
+                            }catch(e){ saving = false; setMsg('Erreur: ' + (e && e.message ? e.message : String(e)), true); }
+                        }
+
+                        // Gérer CF: conserver la valeur du champ lors de l'extinction du toggle et permettre l'édition
+                        var cfCb = document.getElementById('toggleCf');
+                        var cfLabel = cfCb ? cfCb.closest('label.toggle-switch') : null;
+                        var cfInput = document.getElementById('cfNumber');
+                        if(cfCb && cfInput){
+                            // L'input reste toujours éditable, on ne vide plus la valeur quand le toggle passe à OFF
+                            cfInput.style.opacity = '1';
+                            var syncAria = function(){ if(cfLabel){ cfLabel.setAttribute('aria-checked', cfCb.checked ? 'true' : 'false'); } };
+                            syncAria();
+                            cfCb.addEventListener('change', function(){
+                                // Ne pas modifier la valeur du champ; enregistrer la nouvelle config
+                                syncAria();
+                                saveForward();
+                                sizePanelToContent();
+                            });
+                            // Sauvegarder aussi quand le numéro change (debounce)
+                            var debounce = function(fn, ms){ var t; return function(){ var ctx=this, args=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(ctx,args); }, ms); }; };
+                            cfInput.addEventListener('input', debounce(function(){ saveForward(); }, 600));
+                            cfInput.addEventListener('change', function(){ saveForward(); });
+                        }
+
+                        // DND: enregistrer sur changement
+                        if(dndCb){ dndCb.addEventListener('change', function(){ saveForward(); }); }
+                    }catch(e){}
+                    sizePanelToContent();
+                })
+                .catch(function(err){
+                    contentEl.innerHTML = '<div style="padding:12px; color:#b91c1c;">Impossible de charger les fonctions avancées ('+ escHtml(err && err.message ? err.message : String(err)) +').</div>';
+                });
+        }
+
+        function attachContentResizeObserver(){
+            try{
+                if(contentResizeObserver){ contentResizeObserver.disconnect(); contentResizeObserver = null; }
+                if(!window.ResizeObserver) return;
+                contentResizeObserver = new ResizeObserver(function(){
+                    try{ sizePanelToContent(); }catch(e){}
+                });
+                contentResizeObserver.observe(contentEl);
+            }catch(e){ /* ignore */ }
+        }
+
+        function openPanel(title, html, type){
             titleEl.textContent = title || "";
             contentEl.innerHTML = html || "";
             // Coller le panneau au bord gauche de #Phone
             positionPanel();
+            if(!type){
+                var t = String(title || '').toLowerCase();
+                if(/favoris/.test(t)) type = 'favorites';
+                else if(/voicemail|mail/.test(t)) type = 'voicemail';
+                else if(/histori|cdr|appel/.test(t)) type = 'history';
+                else if(/contact/.test(t)) type = 'contacts';
+                else if(/fonction/.test(t)) type = 'functions';
+                else type = 'default';
+            }
+            panel.setAttribute('data-type', String(type));
             sizePanelToContent();
             panel.classList.add("sidepanel--open");
             panel.setAttribute("aria-hidden", "false");
@@ -570,6 +1342,7 @@
             // Ajuster si la fenêtre est redimensionnée
             resizeHandler = function(){ positionPanel(); sizePanelToContent(); };
             window.addEventListener("resize", resizeHandler);
+            attachContentResizeObserver();
         }
         function closePanel(){
             panel.classList.remove("sidepanel--open");
@@ -579,6 +1352,7 @@
                 window.removeEventListener("resize", resizeHandler);
                 resizeHandler = null;
             }
+            if(contentResizeObserver){ try{ contentResizeObserver.disconnect(); }catch(e){} contentResizeObserver = null; }
             // Nettoyer la position explicite (retour au CSS par défaut)
             panel.style.left = "";
             panel.style.width = "";
@@ -590,6 +1364,7 @@
         var btns = [
             { id: "nav-clavier", title: "Clavier" },
             { id: "nav-historique", title: "Historique" },
+            { id: "nav-voicemail", title: "Visual Voicemail" },
             { id: "nav-contacts", title: "Contacts" },
             { id: "nav-favoris", title: "Favoris" },
             { id: "nav-fonction-avance", title: "Fonctions avancées" }
@@ -606,10 +1381,14 @@
                         window.ShowDial();
                     } else {
                         // Repli: si ShowDial n'est pas chargé, garder le comportement précédent
-                        openPanel(b.title, "<div style='padding:12px'>"+ b.title +"</div>");
+                        openPanel(b.title, "<div style='padding:12px'>"+ b.title +"</div>", 'default');
                     }
                 } else if(b.id === 'nav-historique'){
                     loadHistory();
+                } else if(b.id === 'nav-voicemail'){
+                    loadVoicemail();
+                } else if(b.id === 'nav-fonction-avance'){
+                    loadAdvancedFunctions();
                 } else {
                     if(b.id === 'nav-contacts'){
                         // Affiche une zone dédiée pour la recherche/contact: divFindBuddy avec un champ txtFindBuddy
@@ -620,7 +1399,8 @@
                             + "<input id='txtFindBuddyContacts' type='text' placeholder='Nom (ex: jpr), numéro…' autocomplete='off'"
                             + " style='display:block; width:100%; max-width:100%; box-sizing:border-box; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px;' />"
                             + "<div id='ldapResultsContacts' style='margin-top:10px; min-height:24px;'></div>"
-                            + "</div>"
+                            + "</div>",
+                            'contacts'
                         );
 
                         // Câblage: recherche LDAP au fil de la saisie
@@ -675,7 +1455,6 @@
                                 return h;
                             }
                             // Fonction réutilisable pour effectuer la recherche LDAP par sn (nom de famille)
-                            // Équivalent à: ldapsearch -x -H ldap://freepbx17-dev.celya.fr -b "ou=Phonebook,dc=freepbx,dc=fr" -D "cn=phonebook_user,dc=freepbx,dc=fr" "(&(sn=*<q>*)(objectClass=inetOrgPerson))" -w <pass>
                             window.searchLdapBySn = function(q){
                                 q = (q||'').trim();
                                 // 1) Si un handler Electron IPC 'ldap-search' existe (plus tard), l'utiliser
@@ -687,7 +1466,7 @@
                                     var base = localStorage.getItem('LdapSearchUrl');
                                     if(!base){
                                         // Construire depuis SipDomain si possible, sinon utiliser l'URL fournie par défaut
-                                        var domain = getCfg(["SipDomain","SipDomaine"]) || 'http://freepbx17-dev.celya.fr';
+                                        var domain = getCfg(["SipDomain","SipDomaine"]);
                                         if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
                                         domain = domain.replace(/\/$/, '');
                                         base = domain + '/sipapp-api/ldap/contacts';
@@ -810,7 +1589,7 @@
                             window.searchContactsApi = function(q){
                                 q = (q||'').trim();
                                 try{
-                                    var domain = getCfg(["SipDomain","SipDomaine"]) || 'http://freepbx17-dev.celya.fr';
+                                    var domain = getCfg(["SipDomain","SipDomaine"]);
                                     if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
                                     domain = domain.replace(/\/$/, '');
                                     var base = localStorage.getItem('ContactSearchUrl') || (domain + '/sipapp-api/contacts/search');
