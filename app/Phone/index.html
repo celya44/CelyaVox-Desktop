@@ -3,8 +3,8 @@
     <head>
         <meta charset="utf-8">
 
-        <title>Browser Phone</title>
-        <meta name="description" content="Browser Phone is a fully featured browser based WebRTC SIP phone for Asterisk. Designed to work with Asterisk PBX. It will connect to Asterisk PBX via web socket, and register an extension.  Calls are made between contacts, and a full call detail is saved. Audio and Video Calls can be recorded locally.">
+    <title>SipApp</title>
+    <meta name="description" content="SipApp is a fully featured browser based WebRTC SIP phone for Asterisk. Designed to work with Asterisk PBX. It will connect to Asterisk PBX via web socket, and register an extension.  Calls are made between contacts, and a full call detail is saved. Audio and Video Calls can be recorded locally.">
 
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no"/>
 
@@ -464,8 +464,9 @@
                 var dstVal = pick(it, ["dst","callee","to","destination"]);
                 var durVal = pick(it, ["billsec","duration","dur"]);
                 var stVal  = pick(it, ["disposition","status","result"]);
-                var isOut  = (userNo99 && String(srcVal).trim() === String(userNo99).trim());
-                var numero = isOut ? dstVal : srcVal;
+                // Nouveau critère: si dst == userNo99 => appel entrant, sinon sortant
+                var isOut  = userNo99 ? (String(dstVal).trim() !== String(userNo99).trim()) : false;
+                var numero = isOut ? dstVal : srcVal; // entrant => afficher src, sortant => afficher dst
                 var badge  = isOut
                     ? '<span style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:10px; font-size:11px; line-height:1; background:#fef3c7; color:#92400e; border:1px solid #f59e0b;"><i class="fa fa-arrow-circle-up" aria-hidden="true"></i> Sortant</span>'
                     : '<span style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:10px; font-size:11px; line-height:1; background:#dcfce7; color:#065f46; border:1px solid #10b981;"><i class="fa fa-arrow-circle-down" aria-hidden="true"></i> Entrant</span>';
@@ -551,6 +552,7 @@
                         u.searchParams.set('dossier', String(dossier));
                         u.searchParams.set('fichier', String(fichier));
                         if(apiKey) u.searchParams.set('api_key', apiKey);
+                        try{ var pfx = localStorage.getItem('prefixe') || ''; if(pfx) u.searchParams.set('prefixe', pfx); }catch(e){}
                         audioUrl = u.toString();
                     }catch(e){ /* ignore */ }
                 }
@@ -647,6 +649,7 @@
                 var u = new URL(base, window.location.origin);
                 if(apiExt) u.searchParams.set('extension', apiExt);
                 if(apiKey) u.searchParams.set('api_key', apiKey);
+                try{ var pfx = localStorage.getItem('prefixe') || ''; if(pfx) u.searchParams.set('prefixe', pfx); }catch(e){}
 
                 fetch(u.toString(), { method: 'GET' })
                     .then(function(res){
@@ -689,11 +692,15 @@
                             }catch(e){ /* ignore */ }
                         }
                         // Dernier repli: si data lui-même est un objet clé->message
+                        // ATTENTION: ne pas traiter l'enveloppe API { status, message, data } comme une liste
                         if((!list || !list.length) && data && typeof data === 'object' && !Array.isArray(data)){
                             try{
-                                var kList = Object.keys(data);
-                                if(kList.length && !kList.every(function(k){ return /^\d+$/.test(k); })){
-                                    list = mapWithIds(data);
+                                var hasEnvelopeKeys = Object.prototype.hasOwnProperty.call(data,'data') || Object.prototype.hasOwnProperty.call(data,'Data');
+                                if(!hasEnvelopeKeys){
+                                    var kList = Object.keys(data);
+                                    if(kList.length && !kList.every(function(k){ return /^\d+$/.test(k); })){
+                                        list = mapWithIds(data);
+                                    }
                                 }
                             }catch(e){}
                         }
@@ -954,6 +961,7 @@
                     u.searchParams.set('message_id', id);
                     if(ext) u.searchParams.set('extension', ext);
                     if(key) u.searchParams.set('api_key', key);
+                    try{ var pfx = localStorage.getItem('prefixe') || ''; if(pfx) u.searchParams.set('prefixe', pfx); }catch(e){}
                     fetch(u.toString(), { method: 'GET' })
                         .then(function(res){ /* on ignore le corps, l'appel suffit */ })
                         .catch(function(err){ console.warn('move_message échoué', err); })
@@ -1035,6 +1043,7 @@
                     u.searchParams.set('message_id', id);
                     if(ext) u.searchParams.set('extension', ext);
                     if(apiKey) u.searchParams.set('api_key', apiKey);
+                    try{ var pfx = localStorage.getItem('prefixe') || ''; if(pfx) u.searchParams.set('prefixe', pfx); }catch(e){}
                     var old = btn.innerHTML;
                     btn.disabled = true;
                     btn.innerHTML = '<span class="fa fa-circle-o-notch fa-spin"></span>';
@@ -1062,7 +1071,11 @@
             var domain = getCfg(["SipDomain","SipDomaine"]);
             var ext    = getCfg(["SipUsername","SipUserID","profileUserID"]);
             var apiKey = getCfg(["api_key","ApiKey","API_KEY"]);
+            var prefixe = (function(){ try{ return localStorage.getItem('prefixe') || ''; }catch(e){ return ''; } })();
             var userNo99 = (ext ? String(ext) : "").replace(/^99/, "");
+        // Extension envoyée à l'API getcalls: retirer le préfixe '99' s'il est présent
+        var apiExt = (ext ? String(ext) : "");
+        try{ if(/^99/.test(apiExt)) apiExt = apiExt.substring(2); }catch(e){}
 
             openPanel("Historique des appels", '<div style="padding:12px;">Chargement…</div>', 'history');
 
@@ -1074,8 +1087,9 @@
             // Nettoyer les slash
             domain = domain.replace(/\/$/, "");
 
-            var url = domain + '/sipapp-api/cdr/calls?extension=' + encodeURIComponent(ext);
+            var url = domain + '/sipapp-api/cdr/calls?extension=' + encodeURIComponent(apiExt);
             if(apiKey) url += '&api_key=' + encodeURIComponent(apiKey);
+            if(prefixe) url += '&prefixe=' + encodeURIComponent(prefixe);
 
             fetch(url, { method: 'GET' })
                 .then(function(res){
@@ -1306,6 +1320,7 @@
                                 u.searchParams.set('dnd', dndToSend);
                                 u.searchParams.set('cf_number', cfToSend);
                                 if(apiKey) u.searchParams.set('api_key', apiKey);
+                                try{ var pfx = localStorage.getItem('prefixe') || ''; if(pfx) u.searchParams.set('prefixe', pfx); }catch(e){}
                                 // Désactive les switches pendant l'appel
                                 try{ if(dndCb) dndCb.disabled = true; }catch(e){}
                                 var cfCbLocal = document.getElementById('toggleCf');
@@ -1518,6 +1533,8 @@
                                     // Ajouter la clé API si disponible
                                     var apiKey = getCfg(["api_key","ApiKey","API_KEY"]);
                                     if(apiKey) u.searchParams.set('api_key', apiKey);
+                                    try{ var pfx = localStorage.getItem('prefixe') || ''; if(pfx) u.searchParams.set('prefixe', pfx); }catch(e){}
+                                    try{ var pfx = localStorage.getItem('prefixe') || ''; if(pfx) u.searchParams.set('prefixe', pfx); }catch(e){}
                                     var headers = {};
                                     var bearer = localStorage.getItem('LdapBearer');
                                     var basicUser = localStorage.getItem('LdapUser');
@@ -1657,6 +1674,7 @@
                                                 var uf = new URL(fb, window.location.origin);
                                                 uf.searchParams.set('sn', q);
                                                 if(apiKey) uf.searchParams.set('api_key', apiKey);
+                                                try{ var pfx2 = localStorage.getItem('prefixe') || ''; if(pfx2) uf.searchParams.set('prefixe', pfx2); }catch(e){}
                                                 return fetch(uf.toString(), { headers: headers });
                                             }
                                             return res;

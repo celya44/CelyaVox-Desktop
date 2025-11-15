@@ -28,6 +28,13 @@
       "build/wrapper.sh"
     ],
     "linux": {
+      "category": "Network",
+      "desktop": {
+        "Name": "SipApp",
+        "Comment": "WebRTC SIP Phone",
+        "Categories": "Network;Telephony;",
+        "Keywords": "VoIP;SIP;Phone;Telephony;"
+      },
       "target": [
         {
           "target": "AppImage"

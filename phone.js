@@ -1,6 +1,6 @@
 /**
 * ====================
-*  ☎️ Browser Phone ☎️ 
+ *  ☎️ SipApp ☎️ 
 * ====================
 * A fully featured browser based WebRTC SIP phone for Asterisk
 * -------------------------------------------------------------
@@ -71,7 +71,7 @@ let VoiceMailSubscribe = (getDbItem("VoiceMailSubscribe", "1") == "1");         
 let VoicemailDid = getDbItem("VoicemailDid", "");                                      // Number to dial for VoicemialMain()
 let SubscribeVoicemailExpires = parseInt(getDbItem("SubscribeVoicemailExpires", 300)); // Voceimail Subscription expiry time (in seconds)
 let ContactUserName = getDbItem("ContactUserName", "");                                // Optional name for contact header uri
-let userAgentStr = getDbItem("UserAgentStr", "Browser Phone "+ appversion +" (SIPJS - "+ sipjsversion +") "+ navUserAgent);   // Set this to whatever you want.
+let userAgentStr = getDbItem("UserAgentStr", "SipApp "+ appversion +" (SIPJS - "+ sipjsversion +") "+ navUserAgent);   // Set this to whatever you want.
 let hostingPrefix = getDbItem("HostingPrefix", "");                                    // Use if hosting off root directory. eg: "/phone/" or "/static/"
 let RegisterExpires = parseInt(getDbItem("RegisterExpires", 300));                     // Registration expiry time (in seconds)
 let RegisterExtraHeaders = getDbItem("RegisterExtraHeaders", "{}");                    // Parsable Json string of headers to include in register process. eg: '{"foo":"bar"}'
@@ -15188,7 +15188,7 @@ function onVersionRequest(iq){
 
     var iq_response = $iq({'type':'result', 'id':id, 'to':from, 'from':to});
     iq_response.c('query', {'xmlns':'jabber:iq:version'});
-    iq_response.c('name', null, 'Browser Phone');
+    iq_response.c('name', null, 'SipApp');
     iq_response.c('version', null, '0.0.1');
     iq_response.c('os', null, 'Browser');
     XMPP.send(iq_response);

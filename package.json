@@ -30,6 +30,13 @@
     ],
     "linux": {
       "icon": "assets/icons",
+      "category": "Network",
+      "desktop": {
+        "Name": "SipApp",
+        "Comment": "WebRTC SIP Phone",
+        "Categories": "Network;Telephony;",
+        "Keywords": "VoIP;SIP;Phone;Telephony;"
+      },
       "target": [
         {
           "target": "AppImage"
