@@ -8,7 +8,10 @@ contextBridge.exposeInMainWorld('electron', {
   openDialog: (opts) => ipcRenderer.invoke('show-open-dialog', opts),
   // Generic IPC
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
-  on: (channel, cb) => ipcRenderer.on(channel, (evt, ...args) => cb(...args))
+  on: (channel, cb) => ipcRenderer.on(channel, (evt, ...args) => cb(...args)),
+  // Convenience: signal incoming call to bring app to front
+  incomingCall: () => ipcRenderer.invoke('incoming-call'),
+  bringToFront: () => ipcRenderer.invoke('incoming-call')
 })
 
 contextBridge.exposeInMainWorld('env', {

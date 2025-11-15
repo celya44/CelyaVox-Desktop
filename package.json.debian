@@ -16,8 +16,7 @@
   "license": "AGPL",
   "devDependencies": {
     "electron": "^38.2.2",
-    "electron-builder": "^24.0.0",
-    "icon-gen": "^5.0.0"
+    "electron-builder": "^24.0.0"
   },
   "build": {
     "productName": "SipApp-dev",
@@ -29,7 +28,6 @@
       "build/wrapper.sh"
     ],
     "linux": {
-      "icon": "assets/icons",
       "target": [
         {
           "target": "AppImage"
@@ -46,17 +44,11 @@
         "--no-sandbox"
       ]
     },
-    "win": {
-      "icon": "assets/icon.ico"
-    },
-    "mac": {
-      "icon": "assets/icon.icns"
-    },
     "deb": {
       "afterInstall": "postinstall_debian.sh"
     },
     "extraMetadata": {
-      "main": "main.js"
+	"main": "main.js"
     },
     "directories": {
       "buildResources": "assets"

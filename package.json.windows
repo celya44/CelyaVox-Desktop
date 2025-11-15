@@ -1,0 +1,58 @@
+{
+  "name": "sipapp-dev",
+  "version": "1.0.0",
+  "description": "Application SIP de Celya pour Windows",
+  "main": "main.js",
+  "author": "Celya",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^38.2.2",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "fr.celya.sipapp",
+    "productName": "SipApp-dev",
+    "copyright": "© 2025 Celya",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SipApp-dev"
+    }
+  },
+  "dependencies": {}
+}
+

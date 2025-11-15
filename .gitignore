@@ -7,3 +7,5 @@ dist/
 .viminfo
 .cache/
 .ssh/
+.bash_history
+.Xauthority

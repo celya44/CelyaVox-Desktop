@@ -1602,6 +1602,27 @@ function InitUi(){
         $("#BtnAddSomeone").hide();
     }
     
+    // Rendre le compteur de messages vocaux cliquable pour ouvrir le sidepanel Visual Voicemail
+    // Ceci déclenche le même flux que le bouton de navigation "Visual Voicemail"
+    var $vmBadge = $("#TxtVoiceMessages");
+    if($vmBadge.length){
+        $vmBadge.css("cursor","pointer").attr("title", "Visual Voicemail");
+        // Important: empêcher le déclenchement d'autres handlers (dont le dial VM)
+        $vmBadge.off("click.vm").on("click.vm", function(evt){
+            try{
+                if(evt){
+                    if(typeof evt.preventDefault === 'function') evt.preventDefault();
+                    if(typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
+                    if(typeof evt.stopPropagation === 'function') evt.stopPropagation();
+                }
+            }catch(e){}
+            // Ouvrir le sidepanel Visual Voicemail
+            var el = document.getElementById("nav-voicemail");
+            if(el){ el.click(); }
+            return false;
+        });
+    }
+
     // TODO: 
     $("#BtnCreateGroup").hide(); // Not ready for this yet
 
@@ -2483,6 +2504,28 @@ function ReceiveCall(session) {
             RejectCall(lineObj.LineNumber, true);
             return;
         }
+    }
+
+    // Electron integration: bring app to front on real incoming call (no early reject)
+    try {
+        if (window && window.electron && typeof window.electron.incomingCall === "function") {
+            console.log("[Electron] Requesting bring-to-front via IPC 'incoming-call'.");
+            window.electron.incomingCall();
+        } else {
+            // Fallback: tweak the document title to trigger main.js heuristic
+            var __origTitle = document.title || "";
+            var __low = __origTitle.toLowerCase();
+            if (__low.indexOf("incoming") === -1 && __low.indexOf("appel") === -1) {
+                console.log("[Electron Fallback] Updating document.title to trigger page-title heuristic.");
+                document.title = "Incoming call - " + __origTitle;
+                window.setTimeout(function(){
+                    try { document.title = __origTitle; } catch(e){}
+                }, 15000);
+            }
+            try { window.focus(); } catch {}
+        }
+    } catch(e) {
+        console.warn("Failed to signal incoming-call to Electron:", e);
     }
 
     // Create the call HTML 
@@ -7830,6 +7873,43 @@ function endSession(lineNum) {
 
     updateLineScroll(lineNum);
 }
+// Helper: check if RTP DTMF can be inserted on a given session
+function canInsertRtpDtmf(session){
+    try{
+        if(!session || !session.sessionDescriptionHandler || !session.sessionDescriptionHandler.peerConnection) return false;
+        var pc = session.sessionDescriptionHandler.peerConnection;
+        var audioSender = null;
+        pc.getSenders().forEach(function(s){
+            if(!audioSender && s.track && s.track.kind === "audio") audioSender = s;
+        });
+        if(!audioSender || !audioSender.dtmf) return false;
+        return !!audioSender.dtmf.canInsertDTMF;
+    } catch(e){
+        return false;
+    }
+}
+
+// Helper: send DTMF via SIP INFO (application/dtmf-relay)
+function sendDtmfViaSipInfo(session, tone, duration){
+    // Ensure tone is a single valid DTMF symbol
+    var symbol = (tone+"").trim();
+    if(symbol.length !== 1) symbol = symbol.charAt(0);
+    var dur = parseInt(duration || 100, 10);
+    if(isNaN(dur) || dur <= 0) dur = 100;
+    var body = {
+        contentType: "application/dtmf-relay",
+        content: "Signal="+ symbol +"\r\nDuration="+ dur +"\r\n"
+    };
+    // In SIP.js 0.20+, session.info expects body inside requestOptions
+    try{
+        return session.info({ requestOptions: { body: body, extraHeaders: ["Content-Type: application/dtmf-relay"] } })
+            .then(function(){ return true; })
+            .catch(function(){ return false; });
+    } catch(e){
+        return Promise.resolve(false);
+    }
+}
+
 function sendDTMF(lineNum, itemStr) {
     var lineObj = FindLineByNumber(lineNum);
     if(lineObj == null || lineObj.SipSession == null) return;
@@ -7843,14 +7923,28 @@ function sendDTMF(lineNum, itemStr) {
     if(lineObj.SipSession.isOnHold == true){
         if(lineObj.SipSession.data.childsession){
             if(lineObj.SipSession.data.childsession.state == SIP.SessionState.Established){
+                var target = lineObj.SipSession.data.childsession;
                 console.log("Sending DTMF ("+ itemStr +"): "+ lineObj.LineNumber + " child session");
 
-                var result = lineObj.SipSession.data.childsession.sessionDescriptionHandler.sendDtmf(itemStr, options);
-                if(result){
+                var sent = false;
+                try{
+                    if(canInsertRtpDtmf(target)){
+                        var r = target.sessionDescriptionHandler.sendDtmf(itemStr, options);
+                        sent = !!r;
+                    }
+                } catch(e){ sent = false; }
+
+                if(!sent){
+                    // Fallback to SIP INFO
+                    sendDtmfViaSipInfo(target, itemStr, options.duration).then(function(ok){
+                        if(ok){
+                            console.log("Sent DTMF ("+ itemStr +") via SIP INFO (child session)");
+                        } else {
+                            console.log("Failed to send DTMF ("+ itemStr +") child session (RTP and INFO)");
+                        }
+                    });
+                } else {
                     console.log("Sent DTMF ("+ itemStr +") child session");
-                }
-                else{
-                    console.log("Failed to send DTMF ("+ itemStr +") child session");
                 }
             }
             else {
@@ -7863,22 +7957,37 @@ function sendDTMF(lineNum, itemStr) {
     } 
     else {
         if(lineObj.SipSession.state == SIP.SessionState.Established || lineObj.SipSession.state == SIP.SessionState.Establishing){
+            var target = lineObj.SipSession;
             console.log("Sending DTMF ("+ itemStr +"): "+ lineObj.LineNumber);
 
-            var result = lineObj.SipSession.sessionDescriptionHandler.sendDtmf(itemStr, options);
-            if(result){
+            var sent = false;
+            try{
+                if(canInsertRtpDtmf(target)){
+                    var result = target.sessionDescriptionHandler.sendDtmf(itemStr, options);
+                    sent = !!result;
+                }
+            } catch(e){ sent = false; }
+
+            if(!sent && target.state == SIP.SessionState.Established){
+                // Fallback to SIP INFO only when dialog is established
+                sendDtmfViaSipInfo(target, itemStr, options.duration).then(function(ok){
+                    if(ok){
+                        console.log("Sent DTMF ("+ itemStr +") via SIP INFO");
+                        $("#line-" + lineNum + "-msg").html(lang.send_dtmf + ": "+ itemStr);
+                        updateLineScroll(lineNum);
+                        if(typeof web_hook_on_dtmf !== 'undefined') web_hook_on_dtmf(itemStr, target);
+                    } else {
+                        console.log("Failed to send DTMF ("+ itemStr +")");
+                    }
+                });
+            } else if(sent){
                 console.log("Sent DTMF ("+ itemStr +")");
-            }
-            else{
+                $("#line-" + lineNum + "-msg").html(lang.send_dtmf + ": "+ itemStr);
+                updateLineScroll(lineNum);
+                if(typeof web_hook_on_dtmf !== 'undefined') web_hook_on_dtmf(itemStr, target);
+            } else {
                 console.log("Failed to send DTMF ("+ itemStr +")");
             }
-        
-            $("#line-" + lineNum + "-msg").html(lang.send_dtmf + ": "+ itemStr);
-        
-            updateLineScroll(lineNum);
-    
-            // Custom Web hook
-            if(typeof web_hook_on_dtmf !== 'undefined') web_hook_on_dtmf(itemStr, lineObj.SipSession);
         } 
         else {
             console.warn("Cannot Send DTMF ("+ itemStr +"): "+ lineObj.LineNumber + " session is not establishing or established");
@@ -12116,6 +12225,27 @@ function ShowMyProfile(){
         text: lang.cancel,
         action: function(){
             ShowContacts();
+        }
+    });
+    // Bouton de réinitialisation de la configuration (efface le localStorage)
+    buttons.push({
+        text: "Réinitialisation configuration",
+        action: function(){
+            Confirm("Effacer toutes les données locales ? Cette action est irréversible. Vous devrez entierement reconfigurer votre compte", "Réinitialisation", function(){
+                try{
+                    if (typeof localDB !== 'undefined' && typeof localDB.clear === 'function'){
+                        localDB.clear();
+                    } else if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.clear === 'function'){
+                        window.localStorage.clear();
+                    }
+                } catch(e){
+                    console.warn("Échec de la réinitialisation du stockage local", e);
+                }
+                // Recharger l'application pour repartir avec les valeurs par défaut
+                window.location.reload();
+            }, function(){
+                // Annulé par l'utilisateur
+            });
         }
     });
     $.each(buttons, function(i,obj){

@@ -519,6 +519,7 @@
             var audioBase = ctx.audioBase || '';
             var apiExt    = ctx.apiExt || '';
             var apiKey    = ctx.apiKey || '';
+            var moveBase  = ctx.moveBase || '';
             var html = ''+
                 '<table style="width:100%; border-collapse:collapse; font-family:Roboto, Arial, Helvetica; font-size:13px;">'+
                 '<thead><tr style="text-align:left; border-bottom:1px solid rgba(0,0,0,0.08);">'+
@@ -537,6 +538,9 @@
                 var dossier = pick(it, ['folder','dossier']);
                 var fichier = pick(it, ['file','fichier']);
                 var msgId   = pick(it, ['message_id','id','uid','key']);
+                // Mettre en gras les éléments dont le dossier est INBOX (casse ignorée)
+                var isInbox = false;
+                try{ isInbox = String(dossier || '').toUpperCase() === 'INBOX'; }catch(e){ isInbox = false; }
 
                 // Construire l'URL audio si dossier/fichier fournis
                 var audioUrl = '';
@@ -571,7 +575,7 @@
                 + ' style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#f9fafb; cursor:pointer;">'
                 + '<i class="fa fa-download"></i> Lire'
                 + '</button>';
-                        var delBase = ctx.deleteBase || '';
+               var delBase = ctx.deleteBase || '';
                         var delBtn = '';
                         if(msgId && delBase){
                             delBtn = '<button type="button" class="vm-delete" data-id="'+ escHtml(msgId) +'" data-endpoint="'+ escHtml(delBase) +'" data-ext="'+ escHtml(apiExt || '') +'" data-key="'+ escHtml(apiKey || '') +'"'
@@ -580,7 +584,13 @@
                                    + '<i class="fa fa-trash"></i>'
                                    + '</button>';
                         }
-               action = '<div class="vm-audio" style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap; width:100%;">'
+         action = '<div class="vm-audio" style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap; width:100%;"'
+                   + (msgId ? ' data-msg-id="'+ escHtml(msgId) +'"' : '')
+                   + (moveBase ? ' data-move="'+ escHtml(moveBase) +'"' : '')
+                   + (apiExt ? ' data-ext="'+ escHtml(apiExt) +'"' : '')
+                   + (apiKey ? ' data-key="'+ escHtml(apiKey) +'"' : '')
+                   + (dossier ? ' data-folder="'+ escHtml(dossier) +'"' : '')
+                   + '>'
                                +   btn
                    +   '<audio controls preload="none" style="flex:1 1 auto; width:auto; min-width:240px; max-width:100%;" aria-label="Message vocal"></audio>'
                                +   (delBtn ? delBtn : '')
@@ -589,7 +599,9 @@
                         action = '<span style="color:#6b7280;">(pas d\'audio)</span>';
                     }
                 }
-                html += '<tr style="border-bottom:1px solid rgba(0,0,0,0.04);">'+
+                var rowStyle = 'border-bottom:1px solid rgba(0,0,0,0.04);';
+                if(isInbox){ rowStyle = 'font-weight:600; ' + rowStyle; }
+                html += '<tr style="'+ rowStyle +'">'+
                     '<td style="padding:8px 12px;">'+ tryDate(dateVal) +'</td>'+
                     '<td style="padding:8px 12px;">'+ numberBtn +'</td>'+
                     '<td style="padding:8px 12px;">'+ fmtDuration(durVal) +'</td>'+
@@ -611,7 +623,7 @@
             });
         }
 
-        function loadVoicemail(){
+    function loadVoicemail(){
             var domain = getCfg(["SipDomain","SipDomaine"]);
             var ext    = getCfg(["SipUsername","SipUserID","profileUserID"]) || '';
             // Normaliser l'extension: si SipUsername commence par 99 et a 5 caractères, retirer 99
@@ -630,6 +642,7 @@
             var base = localStorage.getItem('VoicemailListUrl') || (domain + '/sipapp-api/voicemail/get_messages');
             var audioBase = localStorage.getItem('VoicemailGetUrl') || (domain + '/sipapp-api/voicemail/get_message');
             var deleteBase = localStorage.getItem('VoicemailDeleteUrl') || (domain + '/sipapp-api/voicemail/delete_voicemail');
+            var moveBase = localStorage.getItem('VoicemailMoveUrl') || (domain + '/sipapp-api/voicemail/move_message');
             try{
                 var u = new URL(base, window.location.origin);
                 if(apiExt) u.searchParams.set('extension', apiExt);
@@ -686,7 +699,7 @@
                         }
 
                         // Affichage direct de la liste, sans entête d'analyse
-                        contentEl.innerHTML = renderVoicemail(list, { audioBase: audioBase, apiExt: apiExt, apiKey: apiKey, deleteBase: deleteBase });
+                        contentEl.innerHTML = renderVoicemail(list, { audioBase: audioBase, apiExt: apiExt, apiKey: apiKey, deleteBase: deleteBase, moveBase: moveBase });
                         sizePanelToContent();
                         bindVoicemailClicks();
                         bindVoicemailDeleteClicks();
@@ -927,6 +940,37 @@
                 }
                 next();
             })();
+
+            // Marquer comme "lu" au premier démarrage de la lecture
+            function markAsReadIfNeeded(container){
+                try{
+                    if(!container || container.dataset.read === '1') return;
+                    var move = container.getAttribute('data-move') || '';
+                    var id   = container.getAttribute('data-msg-id') || '';
+                    var ext  = container.getAttribute('data-ext') || '';
+                    var key  = container.getAttribute('data-key') || '';
+                    if(!move || !id || !ext) return; // paramètres insuffisants
+                    var u = new URL(move, window.location.origin);
+                    u.searchParams.set('message_id', id);
+                    if(ext) u.searchParams.set('extension', ext);
+                    if(key) u.searchParams.set('api_key', key);
+                    fetch(u.toString(), { method: 'GET' })
+                        .then(function(res){ /* on ignore le corps, l'appel suffit */ })
+                        .catch(function(err){ console.warn('move_message échoué', err); })
+                        .finally(function(){
+                            container.dataset.read = '1';
+                            // feedback visuel: alléger la graisse si précédemment en gras (INBOX)
+                            try{ var tr = container.closest('tr'); if(tr){ tr.style.fontWeight = 'normal'; } }catch(e){}
+                        });
+                }catch(e){ /* ignore */ }
+            }
+            var containers = contentEl.querySelectorAll('.vm-audio[data-msg-id]');
+            containers.forEach(function(c){
+                var aud = c.querySelector('audio');
+                if(!aud) return;
+                // Au premier "play" réellement déclenché par l'utilisateur
+                aud.addEventListener('play', function(){ markAsReadIfNeeded(c); }, { once:true });
+            });
             // 2) Compat : ancienne version qui écoutait l'event play sur un <audio data-endpoint>
             var nodes = contentEl.querySelectorAll('audio[data-endpoint]');
             nodes.forEach(function(aud){
@@ -960,6 +1004,7 @@
                             var url2 = URL.createObjectURL(blob);
                             aud.src = url2;
                             aud.play().catch(function(){ /* ignore autoplay fail */ });
+                            try{ var cont = aud.closest('.vm-audio'); if(cont){ markAsReadIfNeeded(cont); } }catch(e){}
                         })
                         .catch(function(err){
                             console.error('Chargement audio voicemail', err);
@@ -1455,17 +1500,13 @@
                                 return h;
                             }
                             // Fonction réutilisable pour effectuer la recherche LDAP par sn (nom de famille)
+                            // Forcée en HTTP (pas d'IPC) pour un comportement identique à Favoris
                             window.searchLdapBySn = function(q){
                                 q = (q||'').trim();
-                                // 1) Si un handler Electron IPC 'ldap-search' existe (plus tard), l'utiliser
-                                if(window.env && window.env.isElectron === true && window.electron && typeof window.electron.invoke === 'function'){
-                                    return window.electron.invoke('ldap-search', q).catch(function(e){ return { ok:false, error:e && e.message ? e.message : String(e) }; });
-                                }
-                                // 2) Fallback HTTP: utilisez localStorage.LdapSearchUrl (ou défaut vers le domaine FreePBX fourni)
                                 try{
                                     var base = localStorage.getItem('LdapSearchUrl');
                                     if(!base){
-                                        // Construire depuis SipDomain si possible, sinon utiliser l'URL fournie par défaut
+                                        // Construire depuis SipDomain si possible, sinon utiliser l'URL par défaut
                                         var domain = getCfg(["SipDomain","SipDomaine"]);
                                         if(!/^https?:\/\//i.test(domain)) domain = 'https://' + domain;
                                         domain = domain.replace(/\/$/, '');
@@ -1490,7 +1531,7 @@
                                             var items = toArrayFromResponse(js) || [];
                                             return { ok:true, items: items };
                                         })
-                                        .catch(function(err){ return { ok:false, error: err.message || String(err) }; });
+                                        .catch(function(err){ return { ok:false, error: err && err.message ? err.message : String(err) }; });
                                 }catch(e){
                                     return Promise.resolve({ ok:false, error: e && e.message ? e.message : String(e) });
                                 }
