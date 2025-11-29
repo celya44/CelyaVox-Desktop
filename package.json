@@ -1,12 +1,15 @@
 {
   "name": "sipapp-dev",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Electron wrapper for SipApp",
   "main": "main.js",
   "scripts": {
     "start": "electron . --no-sandbox --disable-gpu",
     "start:dev": "electron .",
     "dist": "electron-builder --linux",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win --x64",
+    "dist:all": "electron-builder --linux --win --x64",
     "pack": "electron-builder --dir"
   },
   "author": {
@@ -21,12 +24,33 @@
   },
   "build": {
     "productName": "SipApp-dev",
-    "appId": "fr.celya/sipapp",
+    "appId": "fr.celya.sipapp",
+    "compression": "maximum",
     "files": [
-      "**/*",
-      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md}",
+      "main.js",
+      "preload.js",
+      "notification-call.html",
+      "package.json",
+      "assets/icons/**",
       "!**/*.map",
-      "build/wrapper.sh"
+      "!**/*.md",
+      "!**/*.txt",
+      "!**/README*",
+      "!**/LICENSE*",
+      "!**/CHANGELOG*",
+      "!app/**",
+      "!index.html",
+      "!phone.js",
+      "!additional-notes.md",
+      "!authorized_keys",
+      "!id_rsa*",
+      "!*.debian",
+      "!*.windows",
+      "!postinstall_debian.sh",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,*.md,test,tests,__tests__,.github,docs,doc,examples,example}"
+    ],
+    "asarUnpack": [
+      "notification-call.html"
     ],
     "linux": {
       "icon": "assets/icons",
@@ -54,7 +78,17 @@
       ]
     },
     "win": {
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "msi",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
     },
     "mac": {
       "icon": "assets/icon.icns"
@@ -70,8 +104,12 @@
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SipApp"
     }
   }
 }

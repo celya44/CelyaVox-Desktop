@@ -173,6 +173,20 @@
 .bottom-nav__icon { font-size: 18px; line-height: 1; }
 .bottom-nav__label { line-height: 1; }
 
+/* Agrandir l'icône du bouton Clavier (Home) lorsqu'il n'a pas de libellé */
+#nav-clavier .bottom-nav__icon {
+    font-size: 26px;
+}
+
+/* Historique: flèches à 45° pour les icônes courbées (fa-level-up/down) */
+.history-diag-45 {
+    display: inline-block; /* nécessaire pour transform */
+    transform-origin: 50% 50%;
+    vertical-align: middle;
+}
+.history-diag-45--up { transform: rotate(45deg); }
+.history-diag-45--down { transform: rotate(45deg); }
+
 @media (prefers-color-scheme: dark) {
     .bottom-nav {
         background: rgba(30, 30, 30, 0.85);

@@ -32,5 +32,10 @@ npm run dist
 Si vous utilisez l'app image il faut faire un wraper pour ajouter --no-sandbox, ou lancer la commande ./SipApp-dev-1.0.0.AppImage --no-sandbox
 
 
-
-
+pour rebuilder l'application
+changer le owner par dev:dev sur tous le répertoire
+rm /opt/freepbx/www/electronapp/.cache/* -r
+rm -r /opt/freepbx/www/electronapp/node_modules/*
+npm install
+npm audit fix
+npm run dist

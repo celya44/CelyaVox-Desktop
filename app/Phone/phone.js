@@ -17,6 +17,7 @@
 // ===============
 const appversion = "0.3.29";
 const sipjsversion = "0.20.0";
+const electron_version_needed = "1.0.1"; // Version minimale de l'application Electron requise
 const navUserAgent = window.navigator.userAgent;  // TODO: change to Navigator.userAgentData
 const instanceID = String(Date.now());
 const localDB = window.localStorage;
@@ -449,7 +450,70 @@ $(window).on("keypress", function(event) {
         }
     }
 });
+
+// Fonction de comparaison de versions semver
+function compareVersions(v1, v2) {
+    var parts1 = v1.split('.').map(Number);
+    var parts2 = v2.split('.').map(Number);
+    
+    for (var i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+        var p1 = parts1[i] || 0;
+        var p2 = parts2[i] || 0;
+        
+        if (p1 < p2) return -1;
+        if (p1 > p2) return 1;
+    }
+    return 0;
+}
+
+// Vérification de la version Electron
+function checkElectronVersion() {
+    // Attendre que window.env soit disponible
+    var checkInterval = setInterval(function() {
+        if (window.env && window.env.isElectron && window.env.versions && window.env.versions.app) {
+            clearInterval(checkInterval);
+            
+            var currentVersion = window.env.versions.app;
+            console.log("Version Electron actuelle:", currentVersion, "Version requise:", electron_version_needed);
+            
+            if (compareVersions(currentVersion, electron_version_needed) < 0) {
+                console.warn("⚠️ Version Electron obsolète!");
+                showVersionWarning(currentVersion, electron_version_needed);
+            }
+        }
+    }, 100);
+    
+    // Timeout après 5 secondes si window.env n'est pas disponible
+    setTimeout(function() {
+        clearInterval(checkInterval);
+    }, 5000);
+}
+
+// Afficher l'avertissement de version
+function showVersionWarning(currentVersion, neededVersion) {
+    var html = "<div style='position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 500px;'>";
+    html += "<div style='text-align: center; margin-bottom: 20px;'>";
+    html += "<i class='fa fa-exclamation-triangle' style='font-size: 48px; color: #ff9800;'></i>";
+    html += "</div>";
+    html += "<h2 style='text-align: center; color: #333; margin-bottom: 15px;'>Mise à jour requise</h2>";
+    html += "<p style='text-align: center; color: #666; margin-bottom: 10px;'>";
+    html += "Votre version de l'application (<strong>" + currentVersion + "</strong>) est obsolète.";
+    html += "</p>";
+    html += "<p style='text-align: center; color: #666; margin-bottom: 20px;'>";
+    html += "Version minimale requise : <strong>" + neededVersion + "</strong>";
+    html += "</p>";
+    html += "<div style='text-align: center;'>";
+    html += "<button onclick='$(this).closest(\"div\").parent().remove()' style='background: #4CAF50; color: white; border: none; padding: 12px 30px; font-size: 16px; border-radius: 5px; cursor: pointer;'>OK</button>";
+    html += "</div>";
+    html += "</div>";
+    
+    $("body").append(html);
+}
+
 $(document).ready(function () {
+
+    // Vérification de la version Electron
+    checkElectronVersion();
 
     // We will use the IndexDB, so connect to it now, and perform any upgrade options
     PrepareIndexDB();
@@ -572,6 +636,89 @@ $(document).ready(function () {
     if(options.XmppRealmSeparator !== undefined) XmppRealmSeparator = options.XmppRealmSeparator;
     if(options.XmppChatGroupService !== undefined) XmppChatGroupService = options.XmppChatGroupService;
 
+    console.log("=== DEBUT INITIALISATION ELECTRON HANDLERS ===");
+    
+    // ===========================================
+    // Gestionnaires d'événements Electron pour les notifications d'appels
+    // ===========================================
+    console.log("[Electron] Initializing call notification handlers...");
+    console.log("[Electron] Checking if window.electron is available...");
+    console.log("[Electron] window.electron:", typeof window.electron, window.electron);
+    
+    // Définir des fonctions globales pour pouvoir être appelées depuis n'importe où
+    window.handleAnswerCallFromNotification = function(){
+        console.log("[Electron] handleAnswerCallFromNotification called");
+        console.log("[Electron] Total lines:", Lines.length);
+        
+        // Trouver la ligne avec un appel entrant
+        for(var l = 0; l < Lines.length; l++){
+            var lineObj = Lines[l];
+            console.log("[Electron] Line " + l + ":", lineObj);
+            
+            if(lineObj && lineObj.SipSession){
+                console.log("[Electron] Line " + l + " state:", lineObj.SipSession.state);
+                console.log("[Electron] Line " + l + " direction:", lineObj.SipSession.direction);
+                
+                // Vérifier si c'est un appel entrant (state Initial = appel non répondu)
+                if(lineObj.SipSession.state === 'Initial' || lineObj.SipSession.state === 'Establishing'){
+                    console.log("[Electron] Answering line: " + lineObj.LineNumber);
+                    AnswerAudioCall(lineObj.LineNumber);
+                    return;
+                }
+            }
+        }
+        console.log("[Electron] No incoming call found to answer");
+    };
+
+    window.handleRejectCallFromNotification = function(){
+        console.log("[Electron] handleRejectCallFromNotification called");
+        console.log("[Electron] Total lines:", Lines.length);
+        
+        // Trouver la ligne avec un appel entrant
+        for(var l = 0; l < Lines.length; l++){
+            var lineObj = Lines[l];
+            console.log("[Electron] Line " + l + ":", lineObj);
+            
+            if(lineObj && lineObj.SipSession){
+                console.log("[Electron] Line " + l + " state:", lineObj.SipSession.state);
+                console.log("[Electron] Line " + l + " direction:", lineObj.SipSession.direction);
+                
+                // Vérifier si c'est un appel entrant (state Initial = appel non répondu)
+                if(lineObj.SipSession.state === 'Initial' || lineObj.SipSession.state === 'Establishing'){
+                    console.log("[Electron] Rejecting line: " + lineObj.LineNumber);
+                    console.log("[Electron] Calling RejectCall with LineNumber:", lineObj.LineNumber);
+                    try {
+                        RejectCall(lineObj.LineNumber);
+                        console.log("[Electron] RejectCall called successfully");
+                    } catch(e) {
+                        console.error("[Electron] Error calling RejectCall:", e);
+                    }
+                    return;
+                }
+            }
+        }
+        console.log("[Electron] No incoming call found to reject");
+    };
+
+    if(window.electron && typeof window.electron.on === 'function'){
+        console.log("[Electron] Setting up notification action handlers");
+        
+        // Décrocher depuis la notification
+        window.electron.on('answer-call', function(){
+            console.log("[Electron] answer-call event received");
+            window.handleAnswerCallFromNotification();
+        });
+        
+        // Raccrocher depuis la notification
+        window.electron.on('reject-call', function(){
+            console.log("[Electron] reject-call event received");
+            window.handleRejectCallFromNotification();
+        });
+    } else {
+        console.log("[Electron] window.electron not available or no 'on' function");
+        console.log("[Electron] Available methods:", window.electron ? Object.keys(window.electron) : 'window.electron is undefined');
+    }
+    
     // Single Instance Check 
     if(SingleInstance == true){
         console.log("Instance ID :", instanceID);
@@ -609,6 +756,7 @@ $(document).ready(function () {
         }
     });
 });
+
 if(window.matchMedia){
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e){
         console.log(`Changed system Theme to: ${e.matches ? "dark" : "light"} mode`)
@@ -1568,13 +1716,11 @@ function InitUi(){
     leftHTML += "</div>"; //  class=profileContainer
 
     leftHTML += "</td></tr>";
-    leftHTML += "<tr id=searchArea><td class=streamSection style=\"height: 35px; box-sizing: border-box; padding-top: 3px; padding-bottom: 0px;\">";
-
-    // Search
-    leftHTML += "<span id=divFindBuddy class=searchClean><INPUT id=txtFindBuddy type=text autocomplete=none style=\"width: calc(100% - 78px);\"></span>";
-    leftHTML += "<button class=roundButtons id=BtnFilter style=\"margin-left:5px\"><i class=\"fa fa-sliders\"></i></button>"
-
-    leftHTML += "</td></tr>";
+    // Zone de recherche masquée - afficher uniquement les lignes
+    // leftHTML += "<tr id=searchArea><td class=streamSection style=\"height: 35px; box-sizing: border-box; padding-top: 3px; padding-bottom: 0px;\">";
+    // leftHTML += "<span id=divFindBuddy class=searchClean><INPUT id=txtFindBuddy type=text autocomplete=none style=\"width: calc(100% - 78px);\"></span>";
+    // leftHTML += "<button class=roundButtons id=BtnFilter style=\"margin-left:5px\"><i class=\"fa fa-sliders\"></i></button>"
+    // leftHTML += "</td></tr>";
     leftHTML += "<tr><td class=streamSection>"
 
     // Lines & Buddies
@@ -1645,22 +1791,23 @@ function InitUi(){
     if(profileName) $("#UserCallID").html(profilePrepend +""+ profileName);
     $("#UserProfilePic").css("background-image", "url('"+ getPicture("profilePicture") +"')");
     
-    $("#BtnFilter").attr("title", lang.filter_and_sort)
-    $("#BtnFilter").on('click', function(event){
-        if(UiCustomSortAndFilterButton == true){
-            if(typeof web_hook_sort_and_filter !== 'undefined') {
-                web_hook_sort_and_filter(event);
-            }
-        } else {
-            ShowSortAnfFilter();
-        }
-    });
+    // Zone de recherche masquée
+    // $("#BtnFilter").attr("title", lang.filter_and_sort)
+    // $("#BtnFilter").on('click', function(event){
+    //     if(UiCustomSortAndFilterButton == true){
+    //         if(typeof web_hook_sort_and_filter !== 'undefined') {
+    //             web_hook_sort_and_filter(event);
+    //         }
+    //     } else {
+    //         ShowSortAnfFilter();
+    //     }
+    // });
     
-    $("#txtFindBuddy").attr("placeholder", lang.find_someone)
-    $("#txtFindBuddy").on('keyup', function(event){
-        UpdateBuddyList();
-        $("#txtFindBuddy").focus();
-    });
+    // $("#txtFindBuddy").attr("placeholder", lang.find_someone)
+    // $("#txtFindBuddy").on('keyup', function(event){
+    //     UpdateBuddyList();
+    //     $("#txtFindBuddy").focus();
+    // });
 
     $("#BtnFreeDial").attr("title", lang.call)
     $("#BtnFreeDial").on('click', function(event){
@@ -2312,6 +2459,10 @@ function onUnregistered(){
 // Inbound Calls
 // =============
 function ReceiveCall(session) {
+    // Fermer le dialpad s'il est affiché
+    $("#actionArea").hide();
+    $("#myContacts").show();
+    
     // First Determine Identity from From
     var callerID = session.remoteIdentity.displayName;
     var did = session.remoteIdentity.uri.user;
@@ -2509,8 +2660,12 @@ function ReceiveCall(session) {
     // Electron integration: bring app to front on real incoming call (no early reject)
     try {
         if (window && window.electron && typeof window.electron.incomingCall === "function") {
-            console.log("[Electron] Requesting bring-to-front via IPC 'incoming-call'.");
-            window.electron.incomingCall();
+            // Utiliser le nom du buddy s'il est disponible, sinon callerID, puis did
+            var callerName = (buddyObj && buddyObj.CallerIDName) ? buddyObj.CallerIDName : (callerID || did || "Appel entrant");
+            var callerNumber = did || "Numéro inconnu";
+            var callerInfo = callerName + "|" + callerNumber;
+            console.log("[Electron v2] Requesting bring-to-front via IPC 'incoming-call' with callerInfo:", callerInfo, "from buddy:", buddyObj ? buddyObj.CallerIDName : 'N/A', "callerID:", callerID, "did:", did);
+            window.electron.incomingCall(callerInfo);
         } else {
             // Fallback: tweak the document title to trigger main.js heuristic
             var __origTitle = document.title || "";
@@ -2716,6 +2871,15 @@ function AnswerAudioCall(lineNumber) {
         console.warn("Failed to get line ("+ lineNumber +")");
         return;
     }
+    
+    // Fermer la notification si elle existe
+    if (window && window.electron && typeof window.electron.send === "function") {
+        console.log("[Electron] Sending call-answered-from-app event");
+        window.electron.send('call-answered-from-app');
+    } else {
+        console.log("[Electron] Cannot send call-answered-from-app, window.electron.send not available");
+    }
+    
     var session = lineObj.SipSession;
     // Stop the ringtone
     if(session.data.ringerObj){
@@ -2911,6 +3075,15 @@ function RejectCall(lineNumber) {
         console.warn("Unable to find line ("+ lineNumber +")");
         return;
     }
+    
+    // Fermer la notification si elle existe
+    if (window && window.electron && typeof window.electron.send === "function") {
+        console.log("[Electron] Sending call-rejected-from-app event");
+        window.electron.send('call-rejected-from-app');
+    } else {
+        console.log("[Electron] Cannot send call-rejected-from-app, window.electron.send not available");
+    }
+    
     var session = lineObj.SipSession;
     if (session == null) {
         console.warn("Reject failed, null session");
@@ -2969,6 +3142,12 @@ function onInviteCancel(lineObj, response){
         } else {
             lineObj.SipSession.data.reasonText = "Call completed elsewhere";
             console.log("Call completed elsewhere before answer");
+        }
+        
+        // Fermer la notification si elle existe
+        if (window && window.electron && typeof window.electron.send === "function") {
+            console.log("[Electron] Sending call-cancelled event");
+            window.electron.send('call-cancelled');
         }
 
         lineObj.SipSession.dispose().catch(function(error){
@@ -3584,7 +3763,7 @@ function teardownSession(lineObj) {
     // Custom Web hook
     if(typeof web_hook_on_terminate !== 'undefined') web_hook_on_terminate(session);
 
-    // Revenir au clavier téléphonique s'il n'y a plus aucun appel actif
+    // Revenir au dialpad après la fin de l'appel
     try {
         window.setTimeout(function(){
             if(countSessions("0") === 0){
@@ -8632,9 +8811,6 @@ function ShowDial(){
     html += "</table>";
     html += "<div style=\"text-align: center; margin-bottom:15px\">";
     html += "<button class=\"dialButtons dialButtonsDial\" id=dialAudio title=\""+ lang.audio_call  +"\" onclick=\"DialByLine('audio')\"><i class=\"fa fa-phone\"></i></button>";
-    if(EnableVideoCalling == true){
-        html += "<button class=\"dialButtons dialButtonsDial\" id=dialVideo style=\"margin-left:20px\" title=\""+ lang.video_call +"\" onclick=\"DialByLine('video')\"><i class=\"fa fa-video-camera\"></i></button>";
-    }
     html += "</div>";
     $("#actionArea").html(html);
     $("#dialDeleteKey").hide();
@@ -8802,7 +8978,8 @@ function ShowContacts(){
     $("#actionArea").empty();
 
     $("#myContacts").show();
-    $("#searchArea").show();
+    // Zone de recherche masquée
+    // $("#searchArea").show();
 }
 function ShowSortAnfFilter(){
     ShowContacts();
@@ -9171,7 +9348,7 @@ function AddLineHtml(lineObj, direction){
     html += "<div id=\"line-"+ lineObj.LineNumber +"-out-avatar\" class=\"inCallAvatar\" style=\"background-image: url('"+ avatar +"')\"></div>";
     html += "<div class=progressCall>"
     html += "<button onclick=\"cancelSession('"+ lineObj.LineNumber +"')\" class=rejectButton><i class=\"fa fa-phone\" style=\"transform: rotate(135deg);\"></i> "+ lang.cancel +"</button>"
-    html += " <button id=\"line-"+ lineObj.LineNumber +"-early-dtmf\" onclick=\"ShowDtmfMenu('"+ lineObj.LineNumber +"')\" style=\"display:none\"><i class=\"fa fa-keyboard-o\"></i> "+ lang.send_dtmf +"</button>"
+    html += " <button id=\"line-"+ lineObj.LineNumber +"-early-dtmf\" onclick=\"ShowDtmfMenu('"+ lineObj.LineNumber +"')\" style=\"display:none\"><i class=\"fa fa-th\"></i> "+ lang.send_dtmf +"</button>"
     html += "</div>"; //.progressCall
     html += "</div>"; //.CallUi
     html += "</div>"; // -progress
@@ -9260,13 +9437,21 @@ function AddLineHtml(lineObj, direction){
 
     if(direction == "outbound"){
         // DTMF
-        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-ShowDtmf\" onclick=\"ShowDtmfMenu('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.send_dtmf +"\"><i class=\"fa fa-keyboard-o\"></i></button>";
+        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-ShowDtmf\" onclick=\"ShowDtmfMenu('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.send_dtmf +"\"><i class=\"fa fa-th\"></i></button>";
     } else {
-        // Transfer (Audio Only)
-        if(EnableTransfer){
-            html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-Transfer\" onclick=\"StartTransferSession('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.transfer_call +"\"><i class=\"fa fa-reply\" style=\"transform: rotateY(180deg)\"></i></button>";
-            html += "<button id=\"line-"+ lineObj.LineNumber+"-btn-CancelTransfer\" onclick=\"CancelTransferSession('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.cancel_transfer +"\" style=\"color: red; display:none\"><i class=\"fa fa-reply\" style=\"transform: rotateY(180deg)\"></i></button>";
-        }
+        // DTMF
+        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-ShowDtmf\" onclick=\"ShowDtmfMenu('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.send_dtmf +"\"><i class=\"fa fa-th\"></i></button>";
+    }
+    
+    // Transfer (Audio Only) - Moved to first row
+    if(EnableTransfer){
+        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-Transfer\" onclick=\"StartTransferSession('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.transfer_call +"\"><i class=\"fa fa-reply\" style=\"transform: rotateY(180deg)\"></i></button>";
+        html += "<button id=\"line-"+ lineObj.LineNumber+"-btn-CancelTransfer\" onclick=\"CancelTransferSession('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.cancel_transfer +"\" style=\"color: red; display:none\"><i class=\"fa fa-reply\" style=\"transform: rotateY(180deg)\"></i></button>";
+    }
+    // Conference - Moved to first row
+    if(EnableConference){
+        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-Conference\" onclick=\"StartConferenceCall('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.conference_call +"\"><i class=\"fa fa-users\"></i></button>";
+        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-CancelConference\" onclick=\"CancelConference('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.cancel_conference +"\" style=\"color: red; display:none\"><i class=\"fa fa-users\"></i></button>";
     }
 
     // Expand UI (Video Only)
@@ -9277,27 +9462,6 @@ function AddLineHtml(lineObj, direction){
     html += "</div>";
     // Row two (Hidden By Default)
     html += "<div id=\"line-"+ lineObj.LineNumber +"-btn-more\" style=\"display:none\">";
-    // Record
-    if(typeof MediaRecorder != "undefined" && (CallRecordingPolicy == "allow" || CallRecordingPolicy == "enabled")){
-        // Safari: must enable in Develop > Experimental Features > MediaRecorder
-        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-start-recording\" onclick=\"StartRecording('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.start_call_recording +"\"><i class=\"fa fa-dot-circle-o\"></i></button>";
-        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-stop-recording\" onclick=\"StopRecording('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.stop_call_recording +"\" style=\"color: red; display:none\"><i class=\"fa fa-circle\"></i></button>";
-    }
-    // Conference
-    if(EnableConference){
-        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-Conference\" onclick=\"StartConferenceCall('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.conference_call +"\"><i class=\"fa fa-users\"></i></button>";
-        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-CancelConference\" onclick=\"CancelConference('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.cancel_conference +"\" style=\"color: red; display:none\"><i class=\"fa fa-users\"></i></button>";
-    }
-    if(direction == "outbound"){
-        // Transfer (Audio Only)
-        if(EnableTransfer){
-            html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-Transfer\" onclick=\"StartTransferSession('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.transfer_call +"\"><i class=\"fa fa-reply\" style=\"transform: rotateY(180deg)\"></i></button>";
-            html += "<button id=\"line-"+ lineObj.LineNumber+"-btn-CancelTransfer\" onclick=\"CancelTransferSession('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.cancel_transfer +"\" style=\"color: red; display:none\"><i class=\"fa fa-reply\" style=\"transform: rotateY(180deg)\"></i></button>";
-        }
-    } else {
-        // DTMF
-        html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-ShowDtmf\" onclick=\"ShowDtmfMenu('"+ lineObj.LineNumber +"')\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.send_dtmf +"\"><i class=\"fa fa-keyboard-o\"></i></button>";
-    }
     // Settings
     html += "<button id=\"line-"+ lineObj.LineNumber +"-btn-settings\" onclick=\"ChangeSettings('"+ lineObj.LineNumber +"', this)\" class=\"roundButtons dialButtons inCallButtons\" title=\""+ lang.device_settings +"\"><i class=\"fa fa-volume-up\"></i></button>";
     // Present
@@ -9885,9 +10049,14 @@ function PopulateBuddyList() {
     UpdateBuddyList();
 }
 function UpdateBuddyList(){
-    var filter = $("#txtFindBuddy").val();
+    // Zone de recherche désactivée - pas de filtre
+    var filter = ""; // $("#txtFindBuddy").val();
 
     $("#myContacts").empty();
+    
+    // Masquer le dialpad et afficher la liste des lignes
+    $("#actionArea").hide();
+    $("#myContacts").show();
 
     // Show Lines
     var callCount = 0
@@ -9914,18 +10083,22 @@ function UpdateBuddyList(){
 
     // End here if they are not using the buddy system
     if(DisableBuddies == true){
-        // If there are no calls, show the dial pad (if you are allowed)
-        if(callCount == 0 && DisableFreeDial != true){
-            if(UiCustomDialButton == true){
-                if(typeof web_hook_dial_out !== 'undefined') {
-                    web_hook_dial_out(null);
-                }
-            } else {
-                ShowDial();
-            }
-        }
+        // Ne plus afficher le dialpad automatiquement
+        // if(callCount == 0 && DisableFreeDial != true){
+        //     if(UiCustomDialButton == true){
+        //         if(typeof web_hook_dial_out !== 'undefined') {
+        //             web_hook_dial_out(null);
+        //         }
+        //     } else {
+        //         ShowDial();
+        //     }
+        // }
         return;
     }
+
+    // Afficher uniquement les lignes, pas les contacts
+    // Ne pas afficher les buddies/contacts dans le panneau latéral lors d'un appel
+    return;
 
     // Draw a line if there are calls
     if(callCount > 0){
@@ -12079,6 +12252,36 @@ function ShowMyProfile(){
 
     if(EnableNotificationSettings == true) html += NotificationsHtml;
 
+    // 5 About / Versions
+    html += "<div class=UiTextHeading onclick=\"ToggleHeading(this,'About_Html')\"><i class=\"fa fa-info-circle UiTextHeadingIcon\" style=\"background-color:#17a2b8\"></i> À propos</div>"
+    
+    var AboutHtml = "<div id=About_Html style=\"display:none\">";
+    AboutHtml += "<div class=UiText>Versions:</div>";
+    
+    // Debug: log what's available
+    console.log("window.env:", window.env);
+    if (window.env && window.env.versions) {
+        console.log("window.env.versions:", window.env.versions);
+    }
+    
+    AboutHtml += "<table class=UiTable>";
+    if (window.env && window.env.isElectron && window.env.versions) {
+        if (window.env.versions.app) {
+            AboutHtml += "<tr><td>Application Electron:</td><td>" + window.env.versions.app + "</td></tr>";
+        }
+        AboutHtml += "<tr><td>Application JS:</td><td>" + appversion + "</td></tr>";
+        AboutHtml += "<tr><td>Electron:</td><td>" + window.env.versions.electron + "</td></tr>";
+        AboutHtml += "<tr><td>Chrome:</td><td>" + window.env.versions.chrome + "</td></tr>";
+        AboutHtml += "<tr><td>Node.js:</td><td>" + window.env.versions.node + "</td></tr>";
+    } else {
+        AboutHtml += "<tr><td>Application JS:</td><td>" + appversion + "</td></tr>";
+        AboutHtml += "<tr><td colspan='2'>Mode non-Electron ou versions non disponibles</td></tr>";
+    }
+    AboutHtml += "</table>";
+    AboutHtml += "</div>";
+    
+    html += AboutHtml;
+
     html += "</div>";
 
     html += "<div class=UiWindowButtonBar id=ButtonBar></div>";
@@ -12723,11 +12926,7 @@ function ShowMyProfile(){
         if(navigator.mediaDevices){
             const isElectron = window.env?.isElectron === true;
             console.log("JPR isElectron: ", isElectron);
-            if (isElectron) {
-                contraints.audio = { deviceId: "default" }
-                contraints.video = { deviceId: "default" }
-                
-            }
+            
             navigator.mediaDevices.enumerateDevices().then(function(deviceInfos){
                 var savedVideoDevice = getVideoSrcID();
                 var videoDeviceFound = false;

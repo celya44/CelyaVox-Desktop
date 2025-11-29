@@ -257,8 +257,7 @@
         <!-- Bandeau bas moderne (sans action) -->
         <nav class="bottom-nav" role="navigation" aria-label="Navigation principale">
             <button class="bottom-nav__item" id="nav-clavier" type="button" aria-label="Clavier">
-                <i class="fa fa-keyboard-o bottom-nav__icon" aria-hidden="true"></i>
-                <span class="bottom-nav__label">Clavier</span>
+                <i class="fa fa-home bottom-nav__icon" aria-hidden="true"></i>
             </button>
             <button class="bottom-nav__item" id="nav-historique" type="button" aria-label="Historique">
                 <i class="fa fa-history bottom-nav__icon" aria-hidden="true"></i>
@@ -466,16 +465,42 @@
                 var stVal  = pick(it, ["disposition","status","result"]);
                 // Nouveau critère: si dst == userNo99 => appel entrant, sinon sortant
                 var isOut  = userNo99 ? (String(dstVal).trim() !== String(userNo99).trim()) : false;
-                var numero = isOut ? dstVal : srcVal; // entrant => afficher src, sortant => afficher dst
-                var badge  = isOut
-                    ? '<span style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:10px; font-size:11px; line-height:1; background:#fef3c7; color:#92400e; border:1px solid #f59e0b;"><i class="fa fa-arrow-circle-up" aria-hidden="true"></i> Sortant</span>'
-                    : '<span style="display:inline-block; margin-left:6px; padding:2px 6px; border-radius:10px; font-size:11px; line-height:1; background:#dcfce7; color:#065f46; border:1px solid #10b981;"><i class="fa fa-arrow-circle-down" aria-hidden="true"></i> Entrant</span>';
-                var callBtn = '<button type="button" class="history-call" title="Composer" data-number="'+ escHtml(numero) +'" style="appearance:none; border:0; background:transparent; color:#2563eb; cursor:pointer; padding:0;">'+ escHtml(numero) +'</button>';
+                var rawClid = isOut ? (it.dstcnam || it.dstname || dstVal) : (it.clid || it.clidname || srcVal);
+                
+                // Parser le CLID pour extraire nom et numéro
+                // Format possible: "Nom" <numéro> ou juste numéro
+                var callerName = '';
+                var numero = isOut ? dstVal : srcVal;
+                var clidStr = String(rawClid || '');
+                var nameMatch = clidStr.match(/^"?([^"<]+)"?\s*<([^>]+)>/);
+                if(nameMatch){
+                    callerName = nameMatch[1].trim();
+                    numero = nameMatch[2].trim();
+                } else if(clidStr && clidStr !== numero){
+                    callerName = clidStr;
+                }
+                
+                // Option A: une seule icône combinée direction + statut (couleur)
+                var stNorm = String(stVal || '').toUpperCase();
+                var isAnswered = (stNorm === 'ANSWERED');
+                var color = isAnswered ? '#16a34a' : '#dc2626';
+                var dirIcon = isOut ? 'fa-level-up' : 'fa-level-down';
+                var titleTxt = (isOut ? 'Appel sortant' : 'Appel entrant') + ' — ' + (isAnswered ? 'répondu' : 'non répondu');
+                var rotClass = isOut ? 'history-diag-45 history-diag-45--up' : 'history-diag-45 history-diag-45--down';
+                var combinedIcon = '<i class="fa '+ dirIcon +' '+ rotClass +'" style="color:'+ color +'; font-size:18px;" title="'+ escHtml(titleTxt) +'" aria-label="'+ escHtml(titleTxt) +'" aria-hidden="false"></i>';
+                
+                // Afficher le numéro et le nom si disponible
+                var displayText = escHtml(numero);
+                if(callerName && callerName !== numero){
+                    displayText += ' <span style="color:#6b7280; font-size:12px;">(' + escHtml(callerName) + ')</span>';
+                }
+                var callBtn = '<button type="button" class="history-call" title="Composer" data-number="'+ escHtml(numero) +'" style="appearance:none; border:0; background:transparent; color:#2563eb; cursor:pointer; padding:0; text-align:left;">'+ displayText +'</button>';
+                
                 html += '<tr style="border-bottom:1px solid rgba(0,0,0,0.04);">'+
                     '<td style="padding:8px 12px;">'+ tryDate(dateVal) +'</td>'+
-                    '<td style="padding:8px 12px;">'+ callBtn + badge +'</td>'+
+                    '<td style="padding:8px 12px;">'+ callBtn +'</td>'+
                     '<td style="padding:8px 12px;">'+ fmtDuration(durVal) +'</td>'+
-                    '<td style="padding:8px 12px;">'+ '<span class="status-tip" data-tip="'+ escHtml(stVal) +'" aria-label="'+ escHtml(stVal) +'">'+ statusIcon(stVal) +'</span>' +'</td>'+
+                    '<td style="padding:8px 12px;">'+ combinedIcon +'</td>'+
                 '</tr>';
             }
             html += '</tbody></table>';

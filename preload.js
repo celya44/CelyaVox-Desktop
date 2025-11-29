@@ -8,14 +8,31 @@ contextBridge.exposeInMainWorld('electron', {
   openDialog: (opts) => ipcRenderer.invoke('show-open-dialog', opts),
   // Generic IPC
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
-  on: (channel, cb) => ipcRenderer.on(channel, (evt, ...args) => cb(...args)),
+  send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+  on: (channel, cb) => {
+    console.log('[Preload] Registering listener for channel:', channel);
+    const listener = (evt, ...args) => {
+      console.log('[Preload] Event received on channel:', channel, 'with args:', args);
+      cb(...args);
+    };
+    ipcRenderer.on(channel, listener);
+    return listener;
+  },
   // Convenience: signal incoming call to bring app to front
-  incomingCall: () => ipcRenderer.invoke('incoming-call'),
+  incomingCall: (callerInfo) => ipcRenderer.invoke('incoming-call', callerInfo),
   bringToFront: () => ipcRenderer.invoke('incoming-call')
 })
 
+const packageInfo = require('./package.json');
+
 contextBridge.exposeInMainWorld('env', {
-  isElectron: true
+  isElectron: true,
+  versions: {
+    app: packageInfo.version,
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node
+  }
 });
 
 // Read
