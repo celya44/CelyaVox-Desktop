@@ -1,0 +1,54 @@
+CelyaVox - Electron Desktop Application
+========================================
+
+Copyright Notice:
+-----------------
+
+Electron Application (main.js, preload.js, notification-call.html, packaging):
+    Copyright (C) 2025 CELYA <debian@celya.fr>
+
+Phone Web Application (app/Phone/ directory):
+    Based on: InnovateAsterisk/Browser-Phone
+    Original project: https://github.com/InnovateAsterisk/Browser-Phone
+    Original work Copyright (C) InnovateAsterisk and contributors
+    Modified work Copyright (C) 2025 CELYA <debian@celya.fr>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+Components developed by CELYA:
+-------------------------------
+
+- Electron wrapper implementation for desktop deployment
+- Custom window management and system tray integration
+- Incoming call notification system with custom UI
+- Single instance lock mechanism
+- Enhanced media permissions handling
+- Custom branding and packaging configuration
+- Linux-specific optimizations and build configurations
+
+Source Code:
+------------
+
+The complete source code of this modified version is available at:
+https://github.com/celya44/celyavox
+
+As required by the GNU AGPL v3 license, any modifications to this software
+must also be released under the same license, and the source code must be
+made available to users interacting with the software over a network.
+
+Contact:
+--------
+
+CELYA
+Email: debian@celya.fr

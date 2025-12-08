@@ -1,0 +1,44 @@
+/**
+ * Force l'activation de la sélection de texte dans l'application
+ * Ce fichier surcharge les règles CSS qui désactivent la sélection
+ */
+
+/* Activer la sélection sur le body et tous les éléments */
+body,
+body *,
+.NoSelect,
+.chatHistory,
+.tags li {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+    -webkit-touch-callout: default !important;
+    cursor: auto !important;
+}
+
+/* Les champs de texte et zones de saisie doivent rester sélectionnables */
+input,
+textarea,
+[contenteditable="true"],
+.messageText {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+    cursor: text !important;
+}
+
+/* Les boutons et liens ne doivent pas être sélectionnables */
+button,
+a,
+[role="button"],
+.roundButtons,
+.toolBarButtons,
+[onclick] {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    cursor: pointer !important;
+}
