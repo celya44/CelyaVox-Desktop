@@ -1,28 +1,28 @@
 {
   "name": "celyavox",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Electron wrapper for CelyaVox",
   "main": "main.js",
   "config": {
-    "environment": "dev"
+    "environment": "prod"
   },
   "scripts": {
     "start": "electron . --no-sandbox --disable-gpu",
-    "start:dev": "APP_ENV=dev electron . --no-sandbox --disable-gpu",
-    "start:prod": "APP_ENV=prod electron . --no-sandbox --disable-gpu",
+    "start:dev": "cross-env APP_ENV=dev electron . --no-sandbox --disable-gpu",
+    "start:prod": "cross-env APP_ENV=prod electron . --no-sandbox --disable-gpu",
     "prebuild": "node scripts/prebuild.js",
-    "build:dev": "APP_ENV=dev npm run prebuild && electron-builder --linux",
-    "build:prod": "APP_ENV=prod npm run prebuild && electron-builder --linux",
+    "build:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --linux",
+    "build:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --linux",
     "dist": "electron-builder --linux",
     "dist:linux": "electron-builder --linux",
-    "dist:linux:dev": "APP_ENV=dev npm run prebuild && electron-builder --linux",
-    "dist:linux:prod": "APP_ENV=prod npm run prebuild && electron-builder --linux",
+    "dist:linux:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --linux",
+    "dist:linux:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --linux",
     "dist:win": "electron-builder --win --x64",
-    "dist:win:dev": "APP_ENV=dev npm run prebuild && electron-builder --win --x64",
-    "dist:win:prod": "APP_ENV=prod npm run prebuild && electron-builder --win --x64",
+    "dist:win:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --win --x64",
+    "dist:win:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --win --x64",
     "dist:all": "electron-builder --linux --win --x64",
-    "dist:all:dev": "APP_ENV=dev npm run prebuild && electron-builder --linux --win --x64",
-    "dist:all:prod": "APP_ENV=prod npm run prebuild && electron-builder --linux --win --x64",
+    "dist:all:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --linux --win --x64",
+    "dist:all:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --linux --win --x64",
     "pack": "electron-builder --dir"
   },
   "author": {
@@ -31,13 +31,14 @@
   },
   "license": "AGPL",
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "electron": "^38.2.2",
     "electron-builder": "^24.0.0",
     "icon-gen": "^5.0.0"
   },
   "build": {
-    "productName": "celyavox-dev",
-    "appId": "fr.celya.celyavox.dev",
+    "productName": "celyavox",
+    "appId": "fr.celya.celyavox",
     "compression": "maximum",
     "files": [
       "main.js",
@@ -71,7 +72,7 @@
       "icon": "assets/icons",
       "category": "Network",
       "desktop": {
-        "Name": "CelyaVox Dev",
+        "Name": "CelyaVox",
         "Comment": "WebRTC SIP Phone",
         "Categories": "Network;Telephony;",
         "Keywords": "VoIP;SIP;Phone;Telephony;"
@@ -93,10 +94,19 @@
       ]
     },
     "win": {
-      "icon": "assets/icon.ico",
+      "icon": "assets/icons",
       "publisherName": "CELYA",
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
       "verifyUpdateCodeSignature": false,
       "target": [
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        },
         {
           "target": "portable",
           "arch": [
@@ -105,12 +115,17 @@
         }
       ]
     },
+    "msi": {
+      "artifactName": "${productName}-${version}.${ext}",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "perMachine": false
+    },
     "mac": {
       "icon": "assets/icon.icns"
     },
     "deb": {
-      "afterInstall": "postinstall_debian.sh",
-      "artifactName": "celyavox-dev_${version}_${arch}.${ext}"
+      "afterInstall": "postinstall_debian.sh"
     },
     "extraMetadata": {
       "main": "main.js"
@@ -121,8 +136,6 @@
     "portable": {
       "artifactName": "${productName}-${version}.${ext}"
     },
-    "rpm": {
-      "artifactName": "celyavox-dev-${version}.${arch}.${ext}"
-    }
+    "rpm": {}
   }
 }

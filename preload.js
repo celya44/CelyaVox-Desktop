@@ -39,18 +39,108 @@ contextBridge.exposeInMainWorld('electron', {
   },
   // Convenience: signal incoming call to bring app to front
   incomingCall: (callerInfo) => ipcRenderer.invoke('incoming-call', callerInfo),
-  bringToFront: () => ipcRenderer.invoke('incoming-call')
+  bringToFront: () => ipcRenderer.invoke('incoming-call'),
+  // Get app info
+  getAppInfo: () => ipcRenderer.invoke('get-app-info')
 })
 
-const packageInfo = require('./package.json');
+// Detect RDP directly from process.env in preload
+const isRDP = !!(process.env.SESSIONNAME && process.env.SESSIONNAME.includes('RDP'));
+console.log('[Preload] SESSIONNAME:', process.env.SESSIONNAME);
+console.log('[Preload] Is RDP:', isRDP);
 
+// Get app info synchronously from main process before exposing env
+let appVersion = '1.0.4'; // Default version
+try {
+  const syncResult = ipcRenderer.sendSync('get-app-info-sync');
+  console.log('[Preload] Sync result:', syncResult);
+  if (syncResult && syncResult.version) {
+    appVersion = syncResult.version;
+    console.log('[Preload] Version from IPC:', appVersion);
+  } else {
+    console.warn('[Preload] IPC sync failed, using default version');
+  }
+} catch (err) {
+  console.error('[Preload] Erreur lors de la récupération des infos app:', err);
+}
+
+// Expose env info with app version
 contextBridge.exposeInMainWorld('env', {
   isElectron: true,
+  isRDP: isRDP,
   versions: {
-    app: packageInfo.version,
+    app: appVersion,
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node
+  }
+});
+
+console.log('[Preload] window.env exposé:', { app: appVersion, isRDP });
+
+// Sauvegarder les valeurs avant que phone.js les écrase
+const _electronRDP = isRDP;
+const _electronVersion = appVersion;
+
+// Helper pour détecter et logger les problèmes RDP
+window.addEventListener('DOMContentLoaded', () => {
+  // Utiliser les valeurs sauvegardées au lieu de window.env qui peut être écrasé
+  console.log('🖥️ SESSION RDP:', _electronRDP ? 'OUI' : 'NON');
+  console.log('📦 Version app:', _electronVersion);
+  
+  // Restaurer window.env.versions.app si elle a été écrasée
+  if (window.env && window.env.versions && !window.env.versions.app) {
+    window.env.versions.app = _electronVersion;
+    console.log('✅ Version restaurée dans window.env');
+  }
+  
+  if (_electronRDP) {
+    console.log('🔧 APPLICATION DES CORRECTIFS RDP');
+    
+    // Demander les permissions media au démarrage pour forcer la détection
+    setTimeout(() => {
+      console.log('🎤 Demande de permissions media...');
+      navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then(stream => {
+          console.log('✅ Permissions accordées, arrêt du stream');
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Re-énumérer les devices après avoir obtenu les permissions
+          return navigator.mediaDevices.enumerateDevices();
+        })
+        .then(devices => {
+          const audioInputs = devices.filter(d => d.kind === 'audioinput');
+          const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+          console.log(`🎤 APRÈS PERMISSIONS - Inputs: ${audioInputs.length}, Outputs: ${audioOutputs.length}`);
+          audioInputs.forEach(d => console.log('  📥 Input:', d.label || d.deviceId));
+          audioOutputs.forEach(d => console.log('  📤 Output:', d.label || d.deviceId));
+        })
+        .catch(err => console.error('❌ Erreur permissions media:', err));
+    }, 1000);
+    
+    // Polling des devices toutes les 5 secondes
+    setInterval(() => {
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        navigator.mediaDevices.enumerateDevices()
+          .then(devices => {
+            const audioInputs = devices.filter(d => d.kind === 'audioinput');
+            const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+            console.log(`🔄 Polling devices: ${audioInputs.length} inputs, ${audioOutputs.length} outputs`);
+          })
+          .catch(err => console.error('❌ Erreur énumération:', err));
+      }
+    }, 5000);
+    
+    // Forcer l'édition des champs
+    setTimeout(() => {
+      console.log('🔓 Activation de l\'édition des champs...');
+      document.querySelectorAll('input, textarea, select').forEach(el => {
+        if (!el.hasAttribute('readonly') && !el.hasAttribute('disabled')) {
+          el.style.pointerEvents = 'auto';
+          el.style.userSelect = 'text';
+        }
+      });
+    }, 2000);
   }
 });
 

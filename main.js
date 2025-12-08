@@ -64,20 +64,35 @@ if (!gotTheLock) {
 // ----------------------
 // Command line switches
 // ----------------------
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
+// Détecter si on est en session RDP
+const isRDP = process.env.SESSIONNAME && process.env.SESSIONNAME.includes('RDP');
+console.log(`🖥️ Session RDP détectée: ${isRDP}`);
+
+// GPU: utiliser le rendu logiciel compatible RDP
+if (isRDP) {
+  // En RDP, forcer le rendu logiciel
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+  app.commandLine.appendSwitch('enable-begin-frame-scheduling');
+} else {
+  // En local, désactiver le GPU si nécessaire
+  app.commandLine.appendSwitch('disable-gpu');
+}
+
 app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
 app.commandLine.appendSwitch('disable-web-security');
 app.commandLine.appendSwitch('no-sandbox');
 app.commandLine.appendSwitch('disable-dev-shm-usage');
 app.commandLine.appendSwitch('disable-setuid-sandbox');
-app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor');
-app.commandLine.appendSwitch('use-gl', 'swiftshader');
+
 // Autoriser l'autoplay audio pour le ringtone même sans interaction utilisateur
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-// Autoriser l'accès aux devices media
+
+// Forcer l'accès aux devices media (crucial pour RDP)
 app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
 app.commandLine.appendSwitch('enable-media-stream');
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
+// Forcer l'énumération des devices audio même en RDP
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 
 // ----------------------
 // Create main window
@@ -109,8 +124,10 @@ async function createWindow() {
       javascript: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      // Activer l'accès aux devices media
-      enableWebSQL: false
+      enableWebSQL: false,
+      // Améliorer les performances en RDP
+      offscreen: false,
+      backgroundThrottling: false
     }
   });
 
@@ -213,13 +230,31 @@ async function createWindow() {
   // Media permissions - accorder toutes les permissions media
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
     console.log('🔐 Permission demandée:', permission);
-    const allowedPermissions = ['media', 'mediaDevices', 'video', 'audio', 'audioCapture', 'videoCapture'];
+    const allowedPermissions = ['media', 'mediaDevices', 'video', 'audio', 'audioCapture', 'videoCapture', 'microphone', 'camera'];
     if (allowedPermissions.includes(permission)) {
       console.log('✅ Permission accordée:', permission);
       callback(true);
     } else {
       console.log('❌ Permission refusée:', permission);
       callback(false);
+    }
+  });
+  
+  // Log des devices media disponibles après chargement
+  mainWindow.webContents.on('did-finish-load', async () => {
+    try {
+      const devices = await mainWindow.webContents.executeJavaScript(`
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+          console.log('🎤🔊 Devices détectés:', devices.length);
+          devices.forEach(device => {
+            console.log('  -', device.kind, ':', device.label || 'Sans nom');
+          });
+          return devices.length;
+        });
+      `);
+      console.log(`📱 Total devices media: ${devices}`);
+    } catch (err) {
+      console.error('❌ Erreur énumération devices:', err);
     }
   });
   
@@ -446,6 +481,23 @@ ipcMain.on('call-cancelled', () => {
 // ----------------------
 ipcMain.handle('db-get', (event, key) => null);
 ipcMain.handle('db-set', (event, key, value) => true);
+
+// IPC: Get app info
+const packageJson = require('./package.json');
+ipcMain.handle('get-app-info', () => ({
+  version: packageJson.version,
+  name: packageJson.name,
+  isRDP: process.env.SESSIONNAME && process.env.SESSIONNAME.includes('RDP')
+}));
+
+// IPC: Get app info synchronously (for preload)
+ipcMain.on('get-app-info-sync', (event) => {
+  event.returnValue = {
+    version: packageJson.version,
+    name: packageJson.name,
+    isRDP: process.env.SESSIONNAME && process.env.SESSIONNAME.includes('RDP')
+  };
+});
 
 // ----------------------
 // App ready

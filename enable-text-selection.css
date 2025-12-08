@@ -42,3 +42,29 @@ a,
     user-select: none !important;
     cursor: pointer !important;
 }
+
+/* Corrections spécifiques pour RDP - Forcer l'édition des champs */
+input:not([readonly]):not([disabled]),
+textarea:not([readonly]):not([disabled]),
+select:not([disabled]) {
+    pointer-events: auto !important;
+    -webkit-user-modify: read-write !important;
+    -moz-user-modify: read-write !important;
+    cursor: text !important;
+}
+
+/* Forcer la visibilité des curseurs en RDP */
+input:focus,
+textarea:focus,
+[contenteditable="true"]:focus {
+    outline: 2px solid #4CAF50 !important;
+    outline-offset: 1px !important;
+}
+
+/* S'assurer que les éléments disabled sont visuellement distincts */
+input[disabled],
+textarea[disabled],
+select[disabled] {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
