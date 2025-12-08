@@ -28,11 +28,11 @@
 /* CSS_Ui */
 
 .NoSelect {
-    -webkit-user-select: none;  /* Chrome all / Safari all */
-    -moz-user-select: none;     /* Firefox all */
-    -ms-user-select: none;      /* IE 10+ */
-    user-select: none;          /* Likely future */
-    -webkit-touch-callout: none; /* iOS */
+    -webkit-user-select: text;  /* Chrome all / Safari all */
+    -moz-user-select: text;     /* Firefox all */
+    -ms-user-select: text;      /* IE 10+ */
+    user-select: text;          /* Likely future */
+    -webkit-touch-callout: default; /* iOS */
 }
 
 .UiText {
@@ -357,11 +357,11 @@ body {
     cursor: default;
     overflow: hidden;
 
-    -webkit-user-select: none;  /* Chrome all / Safari all */
-    -moz-user-select: none;     /* Firefox all */
-    -ms-user-select: none;      /* IE 10+ */
-    user-select: none;          /* Likely future */
-    -webkit-touch-callout: none; /* iOS */
+    -webkit-user-select: text;  /* Chrome all / Safari all */
+    -moz-user-select: text;     /* Firefox all */
+    -ms-user-select: text;      /* IE 10+ */
+    user-select: text;          /* Likely future */
+    -webkit-touch-callout: default; /* iOS */
 }
 
 .pageContainer{
@@ -1163,7 +1163,7 @@ input[type=range]{
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    user-select: none;
+    user-select: text;
 
     /* For Firefox */
     position:absolute;
@@ -1917,7 +1917,7 @@ input[type=range]{
 }
 
 .tags li {
-    user-select: none;
+    user-select: text;
     float: left;
     margin-bottom: 1px;
     margin-top: 1px;

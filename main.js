@@ -1,11 +1,65 @@
-const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, Notification } = require('electron'); // 🔧 AJOUT Notification
+/**
+ * CelyaVox - Electron Desktop Application
+ * 
+ * Copyright (C) 2025 CELYA <debian@celya.fr>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const config = require('./config');
+
+console.log(`🚀 Démarrage de l'application en mode: ${config.environment}`);
+console.log(`📡 URL du serveur: ${config.serverUrl}`);
+console.log(`📦 Nom de l'application: ${config.appName}`);
+
+// Séparer les données utilisateur entre dev et prod
+if (config.isDev) {
+  const userDataPath = path.join(app.getPath('userData'), '..', 'celyavox-dev');
+  app.setPath('userData', userDataPath);
+  console.log(`💾 Données utilisateur (DEV): ${userDataPath}`);
+} else {
+  console.log(`💾 Données utilisateur (PROD): ${app.getPath('userData')}`);
+}
 
 let mainWindow;
 let tray;
 let lastAutoFocusTs = 0;
 let notificationWindow = null;
+
+// ----------------------
+// Empêcher plusieurs instances
+// ----------------------
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  console.log('⚠️ Une instance de l\'application est déjà en cours d\'exécution');
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log('⚠️ Tentative de lancement d\'une deuxième instance détectée');
+    // Afficher et mettre au premier plan la fenêtre existante
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      if (process.platform === 'darwin') app.dock.show();
+    }
+  });
+}
 
 // ----------------------
 // Command line switches
@@ -44,7 +98,7 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: 'SipApp',
+    title: config.appName,
   // Icône de la fenêtre (principalement Linux)
   icon: windowIconPath,
     autoHideMenuBar: true, // 🔧 cache le menu
@@ -60,7 +114,7 @@ async function createWindow() {
     }
   });
 
-  const serverUrl = 'https://freepbx17-dev.celya.fr/sipapp';
+  const serverUrl = config.serverUrl;
   
   // Clear cache before loading (but keep localStorage for settings)
   await mainWindow.webContents.session.clearCache();
@@ -78,6 +132,60 @@ async function createWindow() {
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
   // mainWindow.webContents.openDevTools(); // Désactivé - décommenter pour debug
+  
+  // Menu contextuel (clic droit) avec fonctions copier/coller
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const contextMenu = Menu.buildFromTemplate([
+      { role: 'cut', label: 'Couper', enabled: params.editFlags.canCut },
+      { role: 'copy', label: 'Copier', enabled: params.editFlags.canCopy },
+      { role: 'paste', label: 'Coller', enabled: params.editFlags.canPaste },
+      { type: 'separator' },
+      { role: 'selectAll', label: 'Tout sélectionner' },
+      ...(params.misspelledWord ? [
+        { type: 'separator' },
+        ...params.dictionarySuggestions.slice(0, 5).map(suggestion => ({
+          label: suggestion,
+          click: () => mainWindow.webContents.replaceMisspelling(suggestion)
+        }))
+      ] : []),
+      ...(process.env.NODE_ENV === 'development' ? [
+        { type: 'separator' },
+        { role: 'reload', label: 'Recharger' },
+        { role: 'toggleDevTools', label: 'Outils de développement' }
+      ] : [])
+    ]);
+    contextMenu.popup();
+  });
+  
+  // Injecter CSS pour forcer la sélection de texte - avant le chargement
+  mainWindow.webContents.on('dom-ready', () => {
+    const cssToInject = `
+      /* Force l'activation de la sélection de texte */
+      body, body *, .NoSelect, .chatHistory, .tags li, div, span, p, td, th, li {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+        -webkit-touch-callout: default !important;
+      }
+      input, textarea, [contenteditable="true"], .messageText {
+        -webkit-user-select: text !important;
+        user-select: text !important;
+        cursor: text !important;
+      }
+      button, a, [role="button"], .roundButtons, .toolBarButtons, [onclick], input[type="button"], input[type="submit"] {
+        -webkit-user-select: none !important;
+        user-select: none !important;
+        cursor: pointer !important;
+      }
+    `;
+    
+    mainWindow.webContents.insertCSS(cssToInject).then(() => {
+      console.log('✅ CSS de sélection de texte injecté');
+    }).catch(err => {
+      console.error('❌ Erreur injection CSS:', err);
+    });
+  });
   
   // Injecter les informations de version après le chargement de la page
   mainWindow.webContents.on('did-finish-load', () => {
@@ -242,7 +350,7 @@ function showBackgroundNotification() {
   if (Notification.isSupported()) {
     console.log('✅ Notification supportée, création...');
     const notification = new Notification({
-      title: 'SipApp reste active',
+      title: `${config.appName} reste active`,
       body: 'L\'application continue de s\'exécuter dans la barre d\'état système.',
       silent: true, // pas de son
       icon: path.join(__dirname, 'app', 'Phone', 'avatars', 'logo.png'),
@@ -367,8 +475,9 @@ app.whenReady().then(async () => {
       return callback({ cancel: true });
     }
     
-    // Ajouter cache buster aux fichiers JS et CSS du serveur sipapp
-    if (details.url.includes('freepbx17-dev.celya.fr/sipapp') && 
+    // Ajouter cache buster aux fichiers JS et CSS du serveur (dev ou prod)
+    const serverDomain = config.serverUrl.replace('https://', '').replace('http://', '');
+    if (details.url.includes(serverDomain) && 
         (details.url.endsWith('.js') || details.url.endsWith('.css'))) {
       const separator = details.url.includes('?') ? '&' : '?';
       const newUrl = `${details.url}${separator}_cb=${cacheBuster}`;
@@ -483,7 +592,7 @@ app.whenReady().then(async () => {
     }
   ]);
 
-  tray.setToolTip('SipApp');
+  tray.setToolTip(config.appName);
   tray.setContextMenu(trayMenu);
 
   tray.on('double-click', () => {

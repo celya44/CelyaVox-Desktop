@@ -136,6 +136,7 @@
         <link rel="stylesheet" type="text/css" href="https://dtd6jl0d42sve.cloudfront.net/lib/jquery/jquery-ui-1.13.2.min.css"/>
         <link rel="stylesheet" type="text/css" href="https://dtd6jl0d42sve.cloudfront.net/lib/Croppie/Croppie-2.6.4/croppie.css"/>
         <link rel="stylesheet" type="text/css" href="phone.css"/>
+        <link rel="stylesheet" type="text/css" href="enable-selection.css"/>
 
         <!-- Provisioning -->
         <script type="text/javascript">
@@ -263,10 +264,6 @@
                 <i class="fa fa-history bottom-nav__icon" aria-hidden="true"></i>
                 <span class="bottom-nav__label">Historique</span>
             </button>
-            <button class="bottom-nav__item" id="nav-voicemail" type="button" aria-label="Visual Voicemail">
-                <i class="fa fa-inbox bottom-nav__icon" aria-hidden="true"></i>
-                <span class="bottom-nav__label">Visual Voicemail</span>
-            </button>
             <button class="bottom-nav__item" id="nav-contacts" type="button" aria-label="Contacts">
                 <i class="fa fa-address-book bottom-nav__icon" aria-hidden="true"></i>
                 <span class="bottom-nav__label">Contacts</span>
@@ -274,6 +271,10 @@
             <button class="bottom-nav__item" id="nav-favoris" type="button" aria-label="Favoris">
                 <i class="fa fa-star bottom-nav__icon" aria-hidden="true"></i>
                 <span class="bottom-nav__label">Favoris</span>
+            </button>
+            <button class="bottom-nav__item" id="nav-voicemail" type="button" aria-label="Visual Voicemail">
+                <i class="fa fa-inbox bottom-nav__icon" aria-hidden="true"></i>
+                <span class="bottom-nav__label">Visual Voicemail</span>
             </button>
             <button class="bottom-nav__item" id="nav-fonction-avance" type="button" aria-label="Fonction avancé">
                 <i class="fa fa-cogs bottom-nav__icon" aria-hidden="true"></i>
@@ -463,8 +464,26 @@
                 var dstVal = pick(it, ["dst","callee","to","destination"]);
                 var durVal = pick(it, ["billsec","duration","dur"]);
                 var stVal  = pick(it, ["disposition","status","result"]);
-                // Nouveau critère: si dst == userNo99 => appel entrant, sinon sortant
-                var isOut  = userNo99 ? (String(dstVal).trim() !== String(userNo99).trim()) : false;
+                // Déterminer la direction de l'appel:
+                // - Si dst == userNo99 => appel entrant
+                // - Si src == userNo99 => appel sortant
+                // - Si ni dans src ni dans dst => appel entrant (appel de groupe/queue)
+                var isOut = false;
+                if(userNo99){
+                    var srcStr = String(srcVal || '').trim();
+                    var dstStr = String(dstVal || '').trim();
+                    var userStr = String(userNo99).trim();
+                    if(dstStr === userStr){
+                        // Extension dans destination => entrant
+                        isOut = false;
+                    } else if(srcStr === userStr){
+                        // Extension dans source => sortant
+                        isOut = true;
+                    } else {
+                        // Ni dans src ni dans dst => appel de groupe/queue => entrant
+                        isOut = false;
+                    }
+                }
                 var rawClid = isOut ? (it.dstcnam || it.dstname || dstVal) : (it.clid || it.clidname || srcVal);
                 
                 // Parser le CLID pour extraire nom et numéro
@@ -1295,23 +1314,25 @@
                         +           '<span class="toggle-label">Actif</span>'
                         +       '</label>'
                         +   '</div>'
-                        +   '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid #e5e7eb; border-radius:8px;">'
-                        +       '<div>'
-                        +           '<div style="font-weight:500;">Renvoi d\'appel (CFU)</div>'
-                        +           '<div style="font-size:12px; color:#6b7280;">Transfère tous les appels vers un numéro.</div>'
+                        +   '<div style="padding:10px; border:1px solid #e5e7eb; border-radius:8px;">'
+                        +       '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">'
+                        +           '<div>'
+                        +               '<div style="font-weight:500;">Renvoi d\'appel (CFU)</div>'
+                        +               '<div style="font-size:12px; color:#6b7280;">Transfère tous les appels vers un numéro.</div>'
+                        +           '</div>'
+                        +           '<label class="toggle-switch" aria-label="CFU" role="switch">'
+                        +               '<input id="toggleCf" type="checkbox" '+ (state.cfEnabled ? 'checked' : '') +' />'
+                        +               '<span class="slider" aria-hidden="true"></span>'
+                        +               '<span class="toggle-label">Actif</span>'
+                        +           '</label>'
                         +       '</div>'
-                        +       '<label class="toggle-switch" aria-label="CFU" role="switch">'
-                        +           '<input id="toggleCf" type="checkbox" '+ (state.cfEnabled ? 'checked' : '') +' />'
-                        +           '<span class="slider" aria-hidden="true"></span>'
-                        +           '<span class="toggle-label">Actif</span>'
-                        +       '</label>'
+                        +       '<div>'
+                        +           '<label for="cfNumber" style="display:block; font-size:13px; color:#374151; margin-bottom:6px;">Numéro de renvoi</label>'
+                        +           '<input id="cfNumber" type="text" value="'+ escHtml(state.cfNumber || '') +'"'
+                        +               ' style="display:block; width:100%; box-sizing:border-box; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px;" />'
+                        +       '</div>'
                         +   '</div>'
-                        +   '<div style="margin-top:10px;">'
-                        +       '<label for="cfNumber" style="display:block; font-size:13px; color:#374151; margin-bottom:6px;">Numéro de renvoi</label>'
-                        +       '<input id="cfNumber" type="text" value="'+ escHtml(state.cfNumber || '') +'"'
-                        +           ' style="display:block; width:100%; box-sizing:border-box; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px;" />'
-                        +       '<div id="advancedMsg" style="margin-top:6px; font-size:12px; color:#6b7280;"></div>'
-                        +   '</div>'
+                        +   '<div id="advancedMsg" style="margin-top:6px; font-size:12px; color:#6b7280;"></div>'
                         + '</div>';
 
                     contentEl.innerHTML = html;
@@ -1913,11 +1934,17 @@
                                                     }catch(e){}
                                                 }
                                             }catch(e){}
-                                            // Revenir à la vue par défaut du panneau Favoris
+                                            // Afficher le dialpad et fermer le champ de recherche
                                             try{
                                                 setTimeout(function(){
-                                                    var favBtn = document.getElementById('nav-favoris');
-                                                    if(favBtn && typeof favBtn.click === 'function') favBtn.click();
+                                                    var myContacts = document.getElementById('myContacts');
+                                                    var actionArea = document.getElementById('actionArea');
+                                                    var favSearchZone = document.getElementById('favSearchZone');
+                                                    var favHelp = document.getElementById('favHelp');
+                                                    if(myContacts) myContacts.style.display = 'none';
+                                                    if(actionArea) actionArea.style.display = '';
+                                                    if(favSearchZone) favSearchZone.style.display = 'none';
+                                                    if(favHelp) favHelp.style.display = '';
                                                 }, 0);
                                             }catch(e){}
                                             return;
@@ -1934,11 +1961,17 @@
                                             loadFavorites();
                                             // Mettre à jour aussitôt l'indicateur de présence si disponible
                                             try{ updateFavPresenceByBuddy(buddy); }catch(e){}
-                                            // Revenir à l'affichage par défaut du panneau Favoris (comme si on cliquait sur le menu du bas)
+                                            // Afficher le dialpad et fermer le champ de recherche
                                             try{
                                                 setTimeout(function(){
-                                                    var favBtn = document.getElementById('nav-favoris');
-                                                    if(favBtn && typeof favBtn.click === 'function') favBtn.click();
+                                                    var myContacts = document.getElementById('myContacts');
+                                                    var actionArea = document.getElementById('actionArea');
+                                                    var favSearchZone = document.getElementById('favSearchZone');
+                                                    var favHelp = document.getElementById('favHelp');
+                                                    if(myContacts) myContacts.style.display = 'none';
+                                                    if(actionArea) actionArea.style.display = '';
+                                                    if(favSearchZone) favSearchZone.style.display = 'none';
+                                                    if(favHelp) favHelp.style.display = '';
                                                 }, 0);
                                             }catch(e){}
                                         }catch(e){

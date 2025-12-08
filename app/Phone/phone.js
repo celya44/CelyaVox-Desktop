@@ -1,6 +1,6 @@
 /**
 * ====================
- *  ☎️ SipApp ☎️ 
+ *  ☎️ CelyaVox ☎️ 
 * ====================
 * A fully featured browser based WebRTC SIP phone for Asterisk
 * -------------------------------------------------------------
@@ -15,9 +15,9 @@
 
 // Global Settings
 // ===============
-const appversion = "0.3.29";
+const appversion = "1.0.2";
 const sipjsversion = "0.20.0";
-const electron_version_needed = "1.0.1"; // Version minimale de l'application Electron requise
+const electron_version_needed = "1.0.4"; // Version minimale de l'application Electron requise
 const navUserAgent = window.navigator.userAgent;  // TODO: change to Navigator.userAgentData
 const instanceID = String(Date.now());
 const localDB = window.localStorage;
@@ -72,7 +72,7 @@ let VoiceMailSubscribe = (getDbItem("VoiceMailSubscribe", "1") == "1");         
 let VoicemailDid = getDbItem("VoicemailDid", "");                                      // Number to dial for VoicemialMain()
 let SubscribeVoicemailExpires = parseInt(getDbItem("SubscribeVoicemailExpires", 300)); // Voceimail Subscription expiry time (in seconds)
 let ContactUserName = getDbItem("ContactUserName", "");                                // Optional name for contact header uri
-let userAgentStr = getDbItem("UserAgentStr", "SipApp "+ appversion +" (SIPJS - "+ sipjsversion +") "+ navUserAgent);   // Set this to whatever you want.
+let userAgentStr = getDbItem("UserAgentStr", "CelyaVox "+ appversion +" (SIPJS - "+ sipjsversion +") "+ navUserAgent);   // Set this to whatever you want.
 let hostingPrefix = getDbItem("HostingPrefix", "");                                    // Use if hosting off root directory. eg: "/phone/" or "/static/"
 let RegisterExpires = parseInt(getDbItem("RegisterExpires", 300));                     // Registration expiry time (in seconds)
 let RegisterExtraHeaders = getDbItem("RegisterExtraHeaders", "{}");                    // Parsable Json string of headers to include in register process. eg: '{"foo":"bar"}'
@@ -469,9 +469,20 @@ function compareVersions(v1, v2) {
 // Vérification de la version Electron
 function checkElectronVersion() {
     // Attendre que window.env soit disponible
+    var versionChecked = false;
     var checkInterval = setInterval(function() {
-        if (window.env && window.env.isElectron && window.env.versions && window.env.versions.app) {
+        if (window.env && window.env.isElectron) {
+            // Vérifier si la propriété versions.app existe
+            if (!window.env.versions || !window.env.versions.app) {
+                clearInterval(checkInterval);
+                versionChecked = true;
+                console.warn("⚠️ Numéro de version non disponible - ancienne version d'Electron");
+                showVersionWarning("inconnue", electron_version_needed);
+                return;
+            }
+            
             clearInterval(checkInterval);
+            versionChecked = true;
             
             var currentVersion = window.env.versions.app;
             console.log("Version Electron actuelle:", currentVersion, "Version requise:", electron_version_needed);
@@ -483,9 +494,19 @@ function checkElectronVersion() {
         }
     }, 100);
     
-    // Timeout après 5 secondes si window.env n'est pas disponible
+    // Timeout après 5 secondes - vérifier si on est vraiment dans Electron
     setTimeout(function() {
-        clearInterval(checkInterval);
+        if (!versionChecked) {
+            clearInterval(checkInterval);
+            // Si on n'est pas dans Electron (navigateur web), pas de warning
+            if (!window.env || !window.env.isElectron) {
+                console.log("📱 Application utilisée depuis un navigateur web - pas de vérification de version Electron");
+            } else {
+                // On est dans Electron mais impossible de récupérer la version
+                console.warn("⚠️ Impossible de vérifier la version - timeout");
+                showVersionWarning("inconnue", electron_version_needed);
+            }
+        }
     }, 5000);
 }
 

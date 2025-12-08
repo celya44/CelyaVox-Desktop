@@ -1,15 +1,28 @@
 {
-  "name": "sipapp-dev",
-  "version": "1.0.1",
-  "description": "Electron wrapper for SipApp",
+  "name": "celyavox",
+  "version": "1.0.4",
+  "description": "Electron wrapper for CelyaVox",
   "main": "main.js",
+  "config": {
+    "environment": "dev"
+  },
   "scripts": {
     "start": "electron . --no-sandbox --disable-gpu",
-    "start:dev": "electron .",
+    "start:dev": "APP_ENV=dev electron . --no-sandbox --disable-gpu",
+    "start:prod": "APP_ENV=prod electron . --no-sandbox --disable-gpu",
+    "prebuild": "node scripts/prebuild.js",
+    "build:dev": "APP_ENV=dev npm run prebuild && electron-builder --linux",
+    "build:prod": "APP_ENV=prod npm run prebuild && electron-builder --linux",
     "dist": "electron-builder --linux",
     "dist:linux": "electron-builder --linux",
+    "dist:linux:dev": "APP_ENV=dev npm run prebuild && electron-builder --linux",
+    "dist:linux:prod": "APP_ENV=prod npm run prebuild && electron-builder --linux",
     "dist:win": "electron-builder --win --x64",
+    "dist:win:dev": "APP_ENV=dev npm run prebuild && electron-builder --win --x64",
+    "dist:win:prod": "APP_ENV=prod npm run prebuild && electron-builder --win --x64",
     "dist:all": "electron-builder --linux --win --x64",
+    "dist:all:dev": "APP_ENV=dev npm run prebuild && electron-builder --linux --win --x64",
+    "dist:all:prod": "APP_ENV=prod npm run prebuild && electron-builder --linux --win --x64",
     "pack": "electron-builder --dir"
   },
   "author": {
@@ -23,13 +36,15 @@
     "icon-gen": "^5.0.0"
   },
   "build": {
-    "productName": "SipApp-dev",
-    "appId": "fr.celya.sipapp",
+    "productName": "celyavox-dev",
+    "appId": "fr.celya.celyavox.dev",
     "compression": "maximum",
     "files": [
       "main.js",
       "preload.js",
       "notification-call.html",
+      "enable-text-selection.css",
+      "config.js",
       "package.json",
       "assets/icons/**",
       "!**/*.map",
@@ -56,7 +71,7 @@
       "icon": "assets/icons",
       "category": "Network",
       "desktop": {
-        "Name": "SipApp",
+        "Name": "CelyaVox Dev",
         "Comment": "WebRTC SIP Phone",
         "Categories": "Network;Telephony;",
         "Keywords": "VoIP;SIP;Phone;Telephony;"
@@ -79,14 +94,14 @@
     },
     "win": {
       "icon": "assets/icon.ico",
+      "publisherName": "CELYA",
+      "verifyUpdateCodeSignature": false,
       "target": [
         {
-          "target": "msi",
-          "arch": ["x64"]
-        },
-        {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -94,7 +109,8 @@
       "icon": "assets/icon.icns"
     },
     "deb": {
-      "afterInstall": "postinstall_debian.sh"
+      "afterInstall": "postinstall_debian.sh",
+      "artifactName": "celyavox-dev_${version}_${arch}.${ext}"
     },
     "extraMetadata": {
       "main": "main.js"
@@ -102,14 +118,11 @@
     "directories": {
       "buildResources": "assets"
     },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": true,
-      "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "SipApp"
+    "portable": {
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "rpm": {
+      "artifactName": "celyavox-dev-${version}.${arch}.${ext}"
     }
   }
 }
