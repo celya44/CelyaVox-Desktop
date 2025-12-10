@@ -8,5 +8,9 @@ dist/
 .cache/
 .ssh/
 .wine/
-.bash_history
-.Xauthority
+.local/
+.pki/
+.rpmdb/
+.git/
+*.log
+npm-debug.log*

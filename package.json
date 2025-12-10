@@ -20,9 +20,12 @@
     "dist:win": "electron-builder --win --x64",
     "dist:win:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --win --x64",
     "dist:win:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --win --x64",
-    "dist:all": "electron-builder --linux --win --x64",
-    "dist:all:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --linux --win --x64",
-    "dist:all:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --linux --win --x64",
+    "dist:mac": "electron-builder --mac",
+    "dist:mac:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --mac",
+    "dist:mac:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --mac",
+    "dist:all": "electron-builder --linux --win --mac --x64",
+    "dist:all:dev": "cross-env APP_ENV=dev npm run prebuild && electron-builder --linux --win --mac --x64",
+    "dist:all:prod": "cross-env APP_ENV=prod npm run prebuild && electron-builder --linux --win --mac --x64",
     "pack": "electron-builder --dir"
   },
   "author": {
