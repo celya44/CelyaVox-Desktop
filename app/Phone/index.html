@@ -17,13 +17,151 @@
         <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#292929">
         <link rel="apple-touch-icon" type="image/png" href="icons/512.png">
         <link rel="manifest" type="application/manifest+json" href="manifest.json">
+        
+        <!-- Microsoft Teams SDK -->
+        <script src="https://res.cdn.office.net/teams-js/2.19.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
+        
         <script type="text/javascript">
 
         const loader = document.querySelector(".loading");
         if (loader) loader.style.display = "none";
+        
+        // Détection de l'environnement Teams
+        let isInTeams = false;
+        let teamsContext = null;
+        
+        // Fonction pour ouvrir l'application dans une fenêtre popup
+        function openInPopup() {
+            console.log('[Teams] Ouverture dans une fenêtre popup');
+            
+            var currentUrl = window.location.href;
+            var width = 420;
+            var height = 740;
+            var left = (screen.width - width) / 2;
+            var top = (screen.height - height) / 2;
+            
+            var features = 'width=' + width + 
+                          ',height=' + height + 
+                          ',left=' + left + 
+                          ',top=' + top + 
+                          ',resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no';
+            
+            var popup = window.open(currentUrl, 'CelyaVoxPhone', features);
+            
+            if (popup) {
+                console.log('[Teams] ✅ Popup ouverte');
+                var banner = document.getElementById('teams-warning-banner');
+                if (banner) {
+                    banner.innerHTML = '<span style="margin-right: 10px;">✅</span>' +
+                                      '<span>Application ouverte dans une fenêtre séparée !</span>' +
+                                      '<button style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 12px; border-radius: 12px; cursor: pointer; margin-left: 15px; font-size: 12px;" onclick="document.getElementById(\'teams-warning-banner\').style.display=\'none\'">OK</button>';
+                    setTimeout(function() {
+                        if (banner) banner.style.display = 'none';
+                    }, 5000);
+                }
+                popup.focus();
+            } else {
+                console.error('[Teams] ❌ Popup bloquée');
+                alert('⚠️ Les popups sont bloquées.\n\nVeuillez autoriser les fenêtres popup pour ce site.');
+            }
+        }
+        
+        // Fonction pour détecter si on est dans Teams
+        function detectTeamsEnvironment() {
+            // Vérifier si le SDK Teams est disponible
+            if (typeof microsoftTeams !== 'undefined') {
+                isInTeams = true;
+                microsoftTeams.app.initialize().then(() => {
+                    console.log("Running in Microsoft Teams");
+                    microsoftTeams.app.getContext().then((context) => {
+                        teamsContext = context;
+                        console.log("Teams context:", context);
+                        
+                        // Appliquer le thème Teams
+                        applyTeamsTheme(context.app.theme);
+                        
+                        // Charger la configuration depuis les paramètres Teams
+                        loadTeamsConfiguration();
+                        
+                        // Afficher la bannière d'avertissement (si pas en popup)
+                        setTimeout(function() {
+                            var isPopup = (window.opener && window.opener !== window);
+                            if (isPopup) {
+                                console.log('[Teams] ✅ Déjà en popup - pas de bannière');
+                            } else {
+                                console.log('[Teams] ⚠️ iframe Teams - affichage bannière');
+                                var banner = document.getElementById('teams-warning-banner');
+                                if (banner) banner.style.display = 'block';
+                            }
+                        }, 2000);
+                    });
+                }).catch(err => {
+                    console.log("Not in Teams environment");
+                    isInTeams = false;
+                });
+            }
+        }
+        
+        // Appliquer le thème Teams
+        function applyTeamsTheme(theme) {
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else if (theme === 'default' || theme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        }
+        
+        // Charger la configuration depuis les paramètres d'URL Teams
+        function loadTeamsConfiguration() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const teamsConfig = urlParams.get('teamsConfig');
+            
+            if (teamsConfig) {
+                try {
+                    const config = JSON.parse(decodeURIComponent(teamsConfig));
+                    console.log("Loading Teams configuration:", config);
+                    
+                    // Appliquer la configuration
+                    if (config.displayName) localStorage.setItem("profileName", config.displayName);
+                    if (config.wssServer) localStorage.setItem("wssServer", config.wssServer);
+                    if (config.wsPort) localStorage.setItem("WebSocketPort", config.wsPort);
+                    if (config.sipDomain) localStorage.setItem("SipDomain", config.sipDomain);
+                    
+                    // Marquer que la configuration provient de Teams
+                    localStorage.setItem("isTeamsConfiguration", "true");
+                } catch (e) {
+                    console.error("Error parsing Teams configuration:", e);
+                }
+            }
+        }
+        
+        // Initialiser la détection Teams au chargement
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', detectTeamsEnvironment);
+        } else {
+            detectTeamsEnvironment();
+        }
 
         function showUrlDialog() {
-            return new Promise(resolve => {
+            return new Promise((resolve) => {
+                // Dans Teams, utiliser directement prompt() qui permet la saisie clavier
+                if (isInTeams) {
+                    const url = prompt("📱 Configuration CelyaVox\n\nEntrez l'URL de configuration SIP :", "https://");
+                    if (url && url.trim()) {
+                        resolve({ type: "url", value: url.trim() });
+                        return;
+                    } else if (url === null) {
+                        // Utilisateur a annulé
+                        const useManual = confirm("Voulez-vous configurer manuellement l'application ?");
+                        resolve({ type: useManual ? "manual" : "cancel" });
+                        return;
+                    } else {
+                        // URL vide, redemander
+                        alert("L'URL ne peut pas être vide. Veuillez réessayer.");
+                        showUrlDialog().then(result => resolve(result));
+                        return;
+                    }
+                }
                 const overlay = document.createElement("div");
                 overlay.style.position = "fixed";
                 overlay.style.top = 0;
@@ -46,13 +184,24 @@
                 modal.style.boxShadow = "0 8px 20px rgba(0,0,0,0.3)";
                 modal.style.textAlign = "center";
                 modal.style.animation = "fadeIn 0.3s ease-out";
+                
+                // Message spécifique pour Teams
+                const teamsMessage = isInTeams ? 
+                    '<p style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 15px; color: #856404;">📱 Vous êtes dans Teams. Pour une meilleure expérience, configurez l\'application via l\'onglet de configuration Teams.</p>' : '';
+                
                 modal.innerHTML = `
                     <h2 style="margin-bottom: 15px; font-size: 1.5em;">Configuration requise</h2>
-                    <p style="margin-bottom: 20px;">Veuillez entrer l'URL pour charger les données SIP :</p>
-                    <input type="text" id="sipUrlInput" placeholder="https://example.com/data.xml" style="width: 100%; padding: 10px; font-size: 1em; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 20px;" />
-                    <div style="display: flex; justify-content: space-between;">
-                        <button id="sipUrlBtn" style="flex: 1; margin-right: 10px; padding: 10px; background-color: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1em;">Valider</button>
-                        <button id="manualConfigBtn" style="flex: 1; padding: 10px; background-color: #f0f0f0; color: #333; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; font-size: 1em;">Configurer à la main</button>
+                    ${teamsMessage}
+                    <p style="margin-bottom: 10px;">Veuillez entrer l'URL pour charger les données SIP :</p>
+                    <div style="margin-bottom: 20px;">
+                        <div id="sipUrlInput" contenteditable="true" 
+                            data-placeholder="https://example.com/data.xml"
+                            style="width: 100%; min-height: 80px; padding: 10px; font-size: 14px; border: 2px solid #4A90E2; border-radius: 6px; font-family: monospace; box-sizing: border-box; outline: none; background: white; overflow-wrap: break-word; word-break: break-all; text-align: left; line-height: 1.5;"
+                            spellcheck="false"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 10px;">
+                        <button id="sipUrlBtn" style="flex: 1; padding: 12px; background-color: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold;">Valider</button>
+                        <button id="manualConfigBtn" style="flex: 1; padding: 12px; background-color: #f0f0f0; color: #333; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; font-size: 1em;">Configurer manuellement</button>
                     </div>
                 `;
                 overlay.appendChild(modal);
@@ -64,33 +213,95 @@
                         0% { opacity: 0; transform: translateY(-20px); }
                         100% { opacity: 1; transform: translateY(0); }
                     }
-                    #sipUrlBtn:hover { background-color: #45a049; }
-                    #manualConfigBtn:hover { background-color: #e0e0e0; }
+                    #sipUrlBtn:hover { background-color: #45a049; transform: scale(1.02); transition: all 0.2s; }
+                    #manualConfigBtn:hover { background-color: #e0e0e0; transform: scale(1.02); transition: all 0.2s; }
+                    #sipUrlInput:focus { border-color: #2196F3; box-shadow: 0 0 8px rgba(33, 150, 243, 0.3); }
+                    #sipUrlInput { 
+                        -webkit-user-select: text !important; 
+                        user-select: text !important; 
+                        pointer-events: auto !important;
+                        cursor: text !important;
+                    }
+                    #sipUrlInput:empty:before {
+                        content: attr(data-placeholder);
+                        color: #999;
+                        font-style: italic;
+                    }
+                    #sipUrlInput:focus:before {
+                        content: '';
+                    }
                 `;
                 document.head.appendChild(style);
 
-                document.getElementById("sipUrlBtn").addEventListener("click", () => {
-                    const url = document.getElementById("sipUrlInput").value.trim();
-                    if(url){
-                        document.body.removeChild(overlay);
-                        resolve({ type: "url", value: url });
-                    } else {
-                        alert("Veuillez entrer une URL valide.");
+                // Attendre que le DOM soit prêt
+                setTimeout(() => {
+                    const urlInput = document.getElementById("sipUrlInput");
+                    
+                    // Forcer l'édition dans Teams avec contenteditable
+                    if (urlInput) {
+                        // Forcer le focus
+                        urlInput.focus();
+                        
+                        // Gérer le collage pour nettoyer le formatage
+                        urlInput.addEventListener('paste', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+                            document.execCommand('insertText', false, text);
+                        });
+                        
+                        // Empêcher les retours à la ligne
+                        urlInput.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                document.getElementById("sipUrlBtn").click();
+                            }
+                        });
+                        
+                        // Clic pour focus
+                        urlInput.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                        });
                     }
-                });
+                    
+                    document.getElementById("sipUrlBtn").addEventListener("click", () => {
+                        const url = urlInput.textContent.trim();
+                        if(url){
+                            document.body.removeChild(overlay);
+                            resolve({ type: "url", value: url });
+                        } else {
+                            alert("Veuillez entrer une URL valide.");
+                        }
+                    });
 
-                document.getElementById("manualConfigBtn").addEventListener("click", () => {
-                    document.body.removeChild(overlay);
-                    resolve({ type: "manual" });
-                });
+                    document.getElementById("manualConfigBtn").addEventListener("click", () => {
+                        document.body.removeChild(overlay);
+                        resolve({ type: "manual" });
+                    });
+                }, 100);
             });
         }
 
         async function checkAndLoadSipDomain() {
+            // Vérifier d'abord si une configuration Teams existe dans l'URL
+            if (isInTeams) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const teamsConfig = urlParams.get('teamsConfig');
+                if (teamsConfig) {
+                    console.log("Using Teams configuration from URL");
+                    return;
+                }
+            }
+            
             let sipDomain = localStorage.getItem("SipDomain");
             if(!sipDomain){
                 const result = await showUrlDialog();
 
+                if(result.type === "cancel") {
+                    console.log("Configuration cancelled");
+                    return;
+                }
+                
                 if(result.type === "url") {
                     try {
                         const response = await fetch(result.value);
@@ -136,6 +347,7 @@
         <link rel="stylesheet" type="text/css" href="https://dtd6jl0d42sve.cloudfront.net/lib/jquery/jquery-ui-1.13.2.min.css"/>
         <link rel="stylesheet" type="text/css" href="https://dtd6jl0d42sve.cloudfront.net/lib/Croppie/Croppie-2.6.4/croppie.css"/>
         <link rel="stylesheet" type="text/css" href="phone.css"/>
+        <link rel="stylesheet" type="text/css" href="phone.teams.css"/>
         <link rel="stylesheet" type="text/css" href="enable-selection.css"/>
 
         <!-- Provisioning -->
@@ -254,6 +466,16 @@
 
         <!-- The Phone -->
         <div id=Phone></div>
+
+        <!-- Bannière d'avertissement Teams -->
+        <div id="teams-warning-banner" style="display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 10000; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 20px; text-align: center; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                <span style="font-weight: 500;">⚠️ Pour recevoir des appels en arrière-plan, ouvrez l'application dans une fenêtre séparée</span>
+                <button onclick="openInPopup()" style="background: white; color: #667eea; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    🪟 Ouvrir dans une fenêtre
+                </button>
+            </div>
+        </div>
 
         <!-- Bandeau bas moderne (sans action) -->
         <nav class="bottom-nav" role="navigation" aria-label="Navigation principale">

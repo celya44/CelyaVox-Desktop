@@ -15,7 +15,7 @@
 
 // Global Settings
 // ===============
-const appversion = "1.0.2";
+const appversion = "1.0.3";
 const sipjsversion = "0.20.0";
 const electron_version_needed = "1.0.4"; // Version minimale de l'application Electron requise
 const navUserAgent = window.navigator.userAgent;  // TODO: change to Navigator.userAgentData
@@ -466,6 +466,143 @@ function compareVersions(v1, v2) {
     return 0;
 }
 
+// ===================================================
+// Gestion des notifications système (navigateur uniquement)
+// ===================================================
+
+// Variable pour suivre l'état du focus de la fenêtre
+var windowHasFocus = true;
+var browserNotificationsEnabled = false;
+
+// Détection du focus de la fenêtre
+$(window).on('focus', function() {
+    windowHasFocus = true;
+});
+
+$(window).on('blur', function() {
+    windowHasFocus = false;
+});
+
+// Détection de la visibilité de la page (onglet caché/affiché)
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        windowHasFocus = false;
+    } else {
+        windowHasFocus = true;
+    }
+});
+
+// Fonction pour vérifier si on est dans un navigateur (pas Electron)
+function isRunningInBrowser() {
+    return !window.env || !window.env.isElectron;
+}
+
+// Fonction pour demander la permission des notifications
+function requestBrowserNotificationPermission() {
+    // Attendre un peu que window.env soit défini si on est dans Electron
+    setTimeout(function() {
+        // Ne faire cela que dans un navigateur
+        var inBrowser = isRunningInBrowser();
+        console.log('[Notifications] Vérification environnement - Navigateur:', inBrowser, 'window.env:', window.env);
+        
+        if (!inBrowser) {
+            console.log('[Notifications] Application Electron détectée - notifications système désactivées');
+            return;
+        }
+
+        // Vérifier si l'API Notification est disponible
+        if (!("Notification" in window)) {
+            console.log('[Notifications] Ce navigateur ne supporte pas les notifications système');
+            return;
+        }
+
+        console.log('[Notifications] Permission actuelle:', Notification.permission);
+
+        // Si déjà accordée
+        if (Notification.permission === "granted") {
+            browserNotificationsEnabled = true;
+            console.log('[Notifications] Permission déjà accordée');
+            return;
+        }
+
+        // Si non bloquée, demander la permission
+        if (Notification.permission !== "denied") {
+            console.log('[Notifications] Demande de permission...');
+            Notification.requestPermission().then(function(permission) {
+                if (permission === "granted") {
+                    browserNotificationsEnabled = true;
+                    console.log('[Notifications] Permission accordée par l\'utilisateur');
+                } else {
+                    console.log('[Notifications] Permission refusée par l\'utilisateur');
+                }
+            });
+        } else {
+            console.log('[Notifications] Permission refusée (bloquée dans les paramètres du navigateur)');
+        }
+    }, 1000); // Attendre 1 seconde pour être sûr que window.env est défini
+}
+
+// Fonction pour afficher une notification système
+function showBrowserNotification(title, options) {
+    console.log('[Notifications] Tentative d\'affichage:', title);
+    console.log('[Notifications] - Navigateur:', isRunningInBrowser());
+    console.log('[Notifications] - Focus fenêtre:', windowHasFocus);
+    console.log('[Notifications] - Permission:', Notification.permission);
+    console.log('[Notifications] - Activé:', browserNotificationsEnabled);
+    
+    // Ne notifier que si :
+    // 1. On est dans un navigateur (pas Electron)
+    // 2. La fenêtre n'a pas le focus ou est cachée
+    // 3. Les notifications sont activées
+    if (!isRunningInBrowser()) {
+        console.log('[Notifications] ❌ Bloqué: Pas dans un navigateur');
+        return; // Pas dans un navigateur, ne rien faire
+    }
+
+    if (windowHasFocus) {
+        console.log('[Notifications] ❌ Bloqué: La fenêtre a le focus');
+        return; // La fenêtre a le focus, pas besoin de notification
+    }
+
+    if (!browserNotificationsEnabled || Notification.permission !== "granted") {
+        console.log('[Notifications] ❌ Bloqué: Notifications non autorisées');
+        return; // Notifications non autorisées
+    }
+
+    // Options par défaut enrichies
+    var notificationOptions = {
+        icon: options.icon || 'icons/icon-96x96.png',
+        badge: options.badge || 'icons/icon-96x96.png',
+        body: options.body || '',
+        tag: options.tag || 'celya-notification',
+        requireInteraction: options.requireInteraction || false,
+        silent: options.silent || false,
+        data: options.data || {}
+    };
+
+    // Créer la notification
+    console.log('[Notifications] ✅ Affichage de la notification');
+    var notification = new Notification(title, notificationOptions);
+
+    // Cliquer sur la notification ramène le focus sur la fenêtre
+    notification.onclick = function() {
+        console.log('[Notifications] Notification cliquée');
+        window.focus();
+        notification.close();
+    };
+
+    // Fermer automatiquement après 10 secondes
+    setTimeout(function() {
+        notification.close();
+    }, 10000);
+
+    return notification;
+}
+
+// ===================================================
+// Fin de la gestion des notifications système
+// ===================================================
+
 // Vérification de la version Electron
 function checkElectronVersion() {
     // Attendre que window.env soit disponible
@@ -533,8 +670,18 @@ function showVersionWarning(currentVersion, neededVersion) {
 
 $(document).ready(function () {
 
+    // Log si on est dans Teams
+    if (typeof isInTeams !== 'undefined' && isInTeams) {
+        console.log('[Teams] Application dans Microsoft Teams');
+        console.log('[Teams] ⚠️  IMPORTANT: Ouvrez dans une fenêtre popup pour recevoir les appels en arrière-plan');
+        console.log('[Teams] Teams suspend le JavaScript des iframes en arrière-plan');
+    }
+
     // Vérification de la version Electron
     checkElectronVersion();
+
+    // Demander la permission pour les notifications système (navigateur uniquement)
+    requestBrowserNotificationPermission();
 
     // We will use the IndexDB, so connect to it now, and perform any upgrade options
     PrepareIndexDB();
@@ -2704,6 +2851,33 @@ function ReceiveCall(session) {
         console.warn("Failed to signal incoming-call to Electron:", e);
     }
 
+    // Notification système pour navigateur (uniquement si pas de focus)
+    try {
+        var notificationTitle = "📞 " + (lang.incoming_call || "Appel entrant");
+        var notificationBody = callerID;
+        if (callerID != did) {
+            notificationBody += "\n📱 " + did;
+        }
+        
+        showBrowserNotification(notificationTitle, {
+            body: notificationBody,
+            icon: buddyObj.imageObjectURL || hostingPrefix + "avatars/logo.png",
+            badge: hostingPrefix + "icons/icon-96x96.png",
+            tag: "incoming-call-" + lineObj.LineNumber,
+            requireInteraction: true, // Notification persistante pour un appel
+            silent: false,
+            data: {
+                type: 'incoming-call',
+                lineNumber: lineObj.LineNumber,
+                callerID: callerID,
+                did: did,
+                buddyId: buddyObj ? buddyObj.identity : null
+            }
+        });
+    } catch(e) {
+        console.warn("[Notifications] Erreur lors de l'affichage de la notification:", e);
+    }
+
     // Create the call HTML 
     AddLineHtml(lineObj, "inbound");
     $("#line-" + lineObj.LineNumber + "-msg").html(lang.incoming_call);
@@ -2805,7 +2979,9 @@ function ReceiveCall(session) {
     // Show notification / Ring / Windows Etc
     // ======================================
 
-    // Browser Window Notification
+    // ANCIENNE notification désactivée - Remplacée par showBrowserNotification() (ligne ~2870)
+    // qui vérifie correctement le focus et l'environnement (navigateur vs Electron)
+    /*
     if ("Notification" in window) {
         if (Notification.permission === "granted") {
             var noticeOptions = { body: lang.incoming_call_from +" " + callerID +" <"+ did +">", icon: getPicture(buddyObj.identity) }
@@ -2830,6 +3006,7 @@ function ReceiveCall(session) {
             }
         }
     }
+    */
 
     // Play Ring Tone if not on the phone
     if(EnableRingtone == true){
@@ -4925,6 +5102,25 @@ function VoicemailNotify(notification){
             if(newVoiceMessages > userAgent.lastVoicemailCount){
                 userAgent.lastVoicemailCount = newVoiceMessages;
 
+                // Utiliser notre système de notification centralisé
+                try {
+                    var vmBody = lang.you_have_new_voice_mail ? lang.you_have_new_voice_mail.replace("{0}", newVoiceMessages) : (newVoiceMessages + " nouveau(x) message(s) vocal/vocaux");
+                    showBrowserNotification("📧 " + (lang.new_voice_mail || "Nouveau message vocal"), {
+                        body: vmBody,
+                        icon: hostingPrefix + "icons/icon-96x96.png",
+                        badge: hostingPrefix + "icons/icon-96x96.png",
+                        tag: "voicemail-notification",
+                        requireInteraction: false,
+                        data: {
+                            type: 'voicemail',
+                            count: newVoiceMessages
+                        }
+                    });
+                } catch(e) {
+                    console.warn("[Notifications] Erreur notification messagerie vocale:", e);
+                }
+
+                /* ANCIENNE notification désactivée - Remplacée par showBrowserNotification()
                 if ("Notification" in window) {
                     if (Notification.permission === "granted") {
 
@@ -4940,7 +5136,7 @@ function VoicemailNotify(notification){
                         }
                     }
                 }
-
+                */
             }
 
         } else {
@@ -5550,17 +5746,34 @@ function ActivateStream(buddyObj, message){
     if (!streamVisible) {
         // Add or Increase the Badge
         IncreaseMissedBadge(buddyObj.identity);
-        if ("Notification" in window) {
-            if (Notification.permission === "granted") {
-                var imageUrl = getPicture(buddyObj.identity);
-                var noticeOptions = { body: message.substring(0, 250), icon: imageUrl }
-                var inComingChatNotification = new Notification(lang.message_from + " : " + buddyObj.CallerIDName, noticeOptions);
-                inComingChatNotification.onclick = function (event) {
-                    // Show Message
-                    SelectBuddy(buddyObj.identity);
-                }
+        
+        // Notification système (navigateur uniquement, si pas de focus)
+        try {
+            var notificationTitle = "💬 " + (lang.message_from || "Message de") + " " + buddyObj.CallerIDName;
+            var notificationBody = message.substring(0, 250);
+            if (message.length > 250) {
+                notificationBody += "...";
             }
+            var imageUrl = getPicture(buddyObj.identity);
+            
+            showBrowserNotification(notificationTitle, {
+                body: notificationBody,
+                icon: imageUrl,
+                badge: hostingPrefix + "icons/icon-96x96.png",
+                tag: "message-" + buddyObj.identity,
+                requireInteraction: false, // Se ferme automatiquement pour un message
+                silent: false,
+                data: {
+                    type: 'incoming-message',
+                    buddyId: buddyObj.identity,
+                    buddyName: buddyObj.CallerIDName,
+                    message: message
+                }
+            });
+        } catch(e) {
+            console.warn("[Notifications] Erreur lors de l'affichage de la notification de message:", e);
         }
+        
         // Play Alert
         console.log("Audio:", audioBlobs.Alert.url);
         var ringer = new Audio(audioBlobs.Alert.blob);
@@ -12947,6 +13160,13 @@ function ShowMyProfile(){
         if(navigator.mediaDevices){
             const isElectron = window.env?.isElectron === true;
             console.log("JPR isElectron: ", isElectron);
+            
+            // Vérifier si on est dans Teams - Teams bloque getUserMedia dans les iframes
+            if(typeof isInTeams !== 'undefined' && isInTeams === true){
+                console.warn("Running in Microsoft Teams - Media devices preview disabled due to Teams iframe restrictions");
+                Alert(lang.alert_teams_media_restriction || "⚠️ Aperçu des médias désactivé dans Teams.\n\nLes appels audio/vidéo fonctionneront normalement, mais la configuration des périphériques n'est pas disponible dans l'environnement Teams.", lang.information || "Information");
+                return;
+            }
             
             navigator.mediaDevices.enumerateDevices().then(function(deviceInfos){
                 var savedVideoDevice = getVideoSrcID();
