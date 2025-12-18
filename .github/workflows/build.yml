@@ -52,6 +52,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+        - name: Build for Linux (dev)
+          if: matrix.platform == 'linux'
+          run: npm run dist:linux:dev
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        - name: Build for Windows (dev)
+          if: matrix.platform == 'windows'
+          run: npm run dist:win:dev
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        - name: Build for macOS (dev)
+          if: matrix.platform == 'mac'
+          run: npm run dist:mac:dev
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
@@ -77,6 +93,31 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
+        - name: Upload Linux dev artifacts
+          if: matrix.platform == 'linux'
+          uses: actions/upload-artifact@v4
+          with:
+            name: linux-build-dev
+            path: |
+              dist/*dev*.AppImage
+              dist/*dev*.deb
+              dist/*dev*.rpm
+        - name: Upload Windows dev artifacts
+          if: matrix.platform == 'windows'
+          uses: actions/upload-artifact@v4
+          with:
+            name: windows-build-dev
+            path: |
+              dist/*dev*.msi
+              dist/*dev*.exe
+        - name: Upload macOS dev artifacts
+          if: matrix.platform == 'mac'
+          uses: actions/upload-artifact@v4
+          with:
+            name: macos-build-dev
+            path: |
+              dist/*dev*.dmg
+              dist/*dev*.zip
   release:
     name: Create Release
     needs: build
