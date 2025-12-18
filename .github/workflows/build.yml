@@ -52,22 +52,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        - name: Build for Linux (dev)
-          if: matrix.platform == 'linux'
-          run: npm run dist:linux:dev
-          env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        - name: Build for Windows (dev)
-          if: matrix.platform == 'windows'
-          run: npm run dist:win:dev
-          env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        - name: Build for macOS (dev)
-          if: matrix.platform == 'mac'
-          run: npm run dist:mac:dev
-          env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Build for Linux (dev)
+        if: matrix.platform == 'linux'
+        run: npm run dist:linux:dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build for Windows (dev)
+        if: matrix.platform == 'windows'
+        run: npm run dist:win:dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build for macOS (dev)
+        if: matrix.platform == 'mac'
+        run: npm run dist:mac:dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
