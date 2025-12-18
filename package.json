@@ -1,7 +1,11 @@
 {
-  "name": "celyavox",
+  "name": "CelyaVox",
   "version": "1.0.5",
   "description": "Electron wrapper for CelyaVox",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/celya44/CelyaVox-Desktop"
+  },
   "main": "main.js",
   "config": {
     "environment": "prod"

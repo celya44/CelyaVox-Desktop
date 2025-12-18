@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "$(dirname "$0")/sipapp-dev" --no-sandbox --disable-dev-shm-usage "$@"
+exec "$(dirname "$0")/celyavox-dev" --no-sandbox --disable-dev-shm-usage "$@"
