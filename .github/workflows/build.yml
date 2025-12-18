@@ -93,31 +93,31 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
-        - name: Upload Linux dev artifacts
-          if: matrix.platform == 'linux'
-          uses: actions/upload-artifact@v4
-          with:
-            name: linux-build-dev
-            path: |
-              dist/*dev*.AppImage
-              dist/*dev*.deb
-              dist/*dev*.rpm
-        - name: Upload Windows dev artifacts
-          if: matrix.platform == 'windows'
-          uses: actions/upload-artifact@v4
-          with:
-            name: windows-build-dev
-            path: |
-              dist/*dev*.msi
-              dist/*dev*.exe
-        - name: Upload macOS dev artifacts
-          if: matrix.platform == 'mac'
-          uses: actions/upload-artifact@v4
-          with:
-            name: macos-build-dev
-            path: |
-              dist/*dev*.dmg
-              dist/*dev*.zip
+      - name: Upload Linux dev artifacts
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build-dev
+          path: |
+            dist/*dev*.AppImage
+            dist/*dev*.deb
+            dist/*dev*.rpm
+      - name: Upload Windows dev artifacts
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-dev
+          path: |
+            dist/*dev*.msi
+            dist/*dev*.exe
+      - name: Upload macOS dev artifacts
+        if: matrix.platform == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-dev
+          path: |
+            dist/*dev*.dmg
+            dist/*dev*.zip
   release:
     name: Create Release
     needs: build
