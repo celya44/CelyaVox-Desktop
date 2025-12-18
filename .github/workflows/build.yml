@@ -1,5 +1,4 @@
 name: Build Electron App
-
 on:
   push:
     branches:
@@ -12,7 +11,6 @@ on:
       - main
       - develop
   workflow_dispatch:
-
 jobs:
   build:
     name: Build on ${{ matrix.os }}
@@ -28,43 +26,32 @@ jobs:
             platform: windows
           - os: macos-latest
             platform: mac
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Build for Linux
         if: matrix.platform == 'linux'
         run: npm run dist:linux:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build for Windows
         if: matrix.platform == 'windows'
         run: npm run dist:win:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build for macOS
         if: matrix.platform == 'mac'
         run: npm run dist:mac:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
+          CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
@@ -74,7 +61,6 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.rpm
-
       - name: Upload Windows artifacts
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
@@ -83,7 +69,6 @@ jobs:
           path: |
             dist/*.msi
             dist/*.exe
-
       - name: Upload macOS artifacts
         if: matrix.platform == 'mac'
         uses: actions/upload-artifact@v4
@@ -92,7 +77,6 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
-
   release:
     name: Create Release
     needs: build
@@ -102,12 +86,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
