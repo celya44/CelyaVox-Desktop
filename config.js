@@ -9,7 +9,7 @@ const environment = process.env.APP_ENV || packageJson.config?.environment || 'd
 
 const config = {
   dev: {
-    serverUrl: 'https://freepbx17-dev.celya.fr/sipapp',
+    serverUrl: 'https://freepbx17-dev.celya.fr/celyavox',
     appName: 'CelyaVox Dev',
     productName: 'celyavox-dev',
     appId: 'fr.celya.celyavox.dev'

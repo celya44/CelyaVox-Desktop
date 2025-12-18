@@ -1,7 +1,7 @@
 {
-  "name": "sipapp-dev",
+  "name": "celyavox-dev",
   "version": "1.0.0",
-  "description": "Electron wrapper for SipApp",
+  "description": "Electron wrapper for CelyaVox",
   "main": "main.js",
   "scripts": {
     "start": "electron . --no-sandbox --disable-gpu",
@@ -19,8 +19,8 @@
     "electron-builder": "^24.0.0"
   },
   "build": {
-    "productName": "SipApp-dev",
-    "appId": "fr.celya/sipapp",
+    "productName": "CelyaVox-dev",
+    "appId": "fr.celya/celyavox",
     "files": [
       "**/*",
       "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md}",
@@ -30,7 +30,7 @@
     "linux": {
       "category": "Network",
       "desktop": {
-        "Name": "SipApp",
+        "Name": "CelyaVox",
         "Comment": "WebRTC SIP Phone",
         "Categories": "Network;Telephony;",
         "Keywords": "VoIP;SIP;Phone;Telephony;"

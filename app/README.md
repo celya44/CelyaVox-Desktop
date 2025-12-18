@@ -1,4 +1,4 @@
-# SipApp
+# CelyaVox
 
 Pour installaer les dependances
 npm install

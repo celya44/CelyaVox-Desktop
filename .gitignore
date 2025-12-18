@@ -12,6 +12,7 @@ dist/
 .pki/
 .rpmdb/
 .git/
+app/Phone
 *.log
 npm-debug.log*
 .env

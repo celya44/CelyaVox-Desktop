@@ -1,5 +1,5 @@
 {
-  "name": "sipapp-dev",
+  "name": "celyavox-dev",
   "version": "1.0.0",
   "description": "Application SIP de Celya pour Windows",
   "main": "main.js",
@@ -15,8 +15,8 @@
     "electron-builder": "^24.0.0"
   },
   "build": {
-    "appId": "fr.celya.sipapp",
-    "productName": "SipApp-dev",
+    "appId": "fr.celya.celyavox",
+    "productName": "CelyaVox-dev",
     "copyright": "© 2025 Celya",
     "files": [
       "main.js",
@@ -50,7 +50,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "SipApp-dev"
+      "shortcutName": "CelyaVox-dev"
     }
   },
   "dependencies": {}

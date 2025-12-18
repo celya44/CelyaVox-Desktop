@@ -41,7 +41,7 @@ npm run dist
 
 #Note: Building macOS .dmg must be done on macOS. Windows code signing / installer customizations are optional._
 
-Si vous utilisez l'app image il faut faire un wraper pour ajouter --no-sandbox, ou lancer la commande ./SipApp-dev-1.0.0.AppImage --no-sandbox
+Si vous utilisez l'app image il faut faire un wraper pour ajouter --no-sandbox, ou lancer la commande ./CelyaVox-dev-1.0.0.AppImage --no-sandbox
 
 
 ## Rebuild Instructions

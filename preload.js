@@ -1,5 +1,5 @@
 /**
- * SipApp - Electron Desktop Application - Preload Script
+ * CelyaVox - Electron Desktop Application - Preload Script
  * 
  * Copyright (C) 2025 CELYA <debian@celya.fr>
  * 

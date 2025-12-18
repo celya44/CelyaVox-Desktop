@@ -2,14 +2,14 @@
 # postinstall.sh - Script post-installation pour le .deb
 
 # Sauvegarder l'exécutable original
-if [ -f /opt/SipApp-dev/sipapp-dev ] && [ ! -f /opt/SipApp-dev/sipapp-dev.bin ]; then
-    mv /opt/SipApp-dev/sipapp-dev /opt/SipApp-dev/sipapp-dev.bin
+if [ -f /opt/CelyaVox-dev/celyavox-dev ] && [ ! -f /opt/CelyaVox-dev/celyavox-dev.bin ]; then
+    mv /opt/CelyaVox-dev/celyavox-dev /opt/CelyaVox-dev/celyavox-dev.bin
 fi
 
 # Créer le wrapper
-cat > /opt/SipApp-dev/sipapp-dev << 'EOF'
+cat > /opt/CelyaVox-dev/celyavox-dev << 'EOF'
 #!/bin/bash
-exec "/opt/SipApp-dev/sipapp-dev.bin" --no-sandbox --disable-dev-shm-usage "$@"
+exec "/opt/CelyaVox-dev/celyavox-dev.bin" --no-sandbox --disable-dev-shm-usage "$@"
 EOF
 
-chmod +x /opt/SipApp-dev/sipapp-dev
+chmod +x /opt/CelyaVox-dev/celyavox-dev

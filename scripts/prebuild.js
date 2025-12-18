@@ -38,7 +38,7 @@ if (env === 'dev') {
   console.log('   - Product Name: celyavox-dev');
   console.log('   - App ID: fr.celya.celyavox.dev');
   console.log('   - Artifacts: celyavox-dev-*');
-  console.log('   - Server: https://freepbx17-dev.celya.fr/sipapp');
+  console.log('   - Server: https://freepbx17-dev.celya.fr/celyavox');
 } else {
   packageJson.build.productName = 'celyavox';
   packageJson.build.appId = 'fr.celya.celyavox';

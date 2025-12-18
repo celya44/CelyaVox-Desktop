@@ -7,7 +7,7 @@ L'application CelyaVox supporte deux environnements :
 ### **Développement (dev)**
 - Nom de l'application : `CelyaVox Dev`
 - Nom du produit : `celyavox-dev`
-- URL du serveur : `https://freepbx17-dev.celya.fr/sipapp`
+- URL du serveur : `https://freepbx17-dev.celya.fr/celyavox`
 - App ID : `fr.celya.celyavox.dev`
 
 ### **Production (prod)**
@@ -88,7 +88,7 @@ npm run dist:all:prod
 Au lancement de l'application, vous verrez dans la console :
 ```
 🚀 Démarrage de l'application en mode: dev
-📡 URL du serveur: https://freepbx17-dev.celya.fr/sipapp
+📡 URL du serveur: https://freepbx17-dev.celya.fr/celyavox
 📦 Nom de l'application: CelyaVox Dev
 ```
 
