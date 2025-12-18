@@ -34,7 +34,9 @@
   },
   "license": "AGPL",
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "cross-env": "^10.1.0",
+    "dotenv": "^16.4.5",
     "electron": "^38.2.2",
     "electron-builder": "^24.0.0",
     "icon-gen": "^5.0.0"
@@ -125,8 +127,45 @@
       "perMachine": false
     },
     "mac": {
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
     },
+    "dmg": {
+      "sign": false,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "afterSign": "scripts/notarize.js",
     "deb": {
       "afterInstall": "postinstall_debian.sh"
     },

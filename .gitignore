@@ -14,3 +14,12 @@ dist/
 .git/
 *.log
 npm-debug.log*
+.env
+*.p12
+*.cer
+*.certSigningRequest
+.antigravity-server
+.dotnet
+.gitignore.swp
+.vscode-server
+.wget-hsts
