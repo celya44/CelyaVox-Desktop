@@ -1,6 +1,6 @@
 {
   "name": "CelyaVox",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Electron wrapper for CelyaVox",
   "repository": {
     "type": "git",
@@ -169,7 +169,6 @@
         }
       ]
     },
-    "afterSign": "scripts/notarize.js",
     "deb": {
       "afterInstall": "postinstall_debian.sh"
     },
