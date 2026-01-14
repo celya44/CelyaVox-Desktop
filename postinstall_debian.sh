@@ -13,7 +13,7 @@ for NAME in "${NAMES[@]}"; do
         [ -d "$d" ] || continue
         base=$(basename "$d")
         lower=$(echo "$base" | tr '[:upper:]' '[:lower:]')
-        if [[ "$lower" == *"${NAME}"* ]]; then
+        if [[ "$lower" == *"$NAME"* ]]; then
             TARGET_DIR="$d"
             break
         fi
