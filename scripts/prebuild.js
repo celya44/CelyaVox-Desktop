@@ -29,6 +29,10 @@ if (env === 'dev') {
   packageJson.build.rpm = packageJson.build.rpm || {};
   packageJson.build.rpm.artifactName = 'celyavox-dev-${version}.${arch}.${ext}';
   
+  // Ensure deb package metadata used by fpm/app-builder-lib
+  packageJson.build.deb.packageName = packageJson.build.productName;
+  packageJson.build.deb.maintainer = `${packageJson.author.name} <${packageJson.author.email}>`;
+  
   // Définir l'environnement par défaut pour l'exécutable
   packageJson.config.environment = 'dev';
   
@@ -46,6 +50,10 @@ if (env === 'dev') {
   
   // Nom standard pour prod
   if (packageJson.build.deb?.artifactName) delete packageJson.build.deb.artifactName;
+  packageJson.build.deb = packageJson.build.deb || {};
+  // Ensure deb package metadata used by fpm/app-builder-lib
+  packageJson.build.deb.packageName = packageJson.build.productName;
+  packageJson.build.deb.maintainer = `${packageJson.author.name} <${packageJson.author.email}>`;
   if (packageJson.build.rpm?.artifactName) delete packageJson.build.rpm.artifactName;
   
   // Définir l'environnement par défaut pour l'exécutable
