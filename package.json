@@ -8,7 +8,7 @@
   },
   "main": "main.js",
   "config": {
-    "environment": "prod"
+    "environment": "dev"
   },
   "scripts": {
     "start": "electron . --no-sandbox --disable-gpu",
@@ -46,8 +46,8 @@
     "icon-gen": "^5.0.0"
   },
   "build": {
-    "productName": "celyavox",
-    "appId": "fr.celya.celyavox",
+    "productName": "celyavox-dev",
+    "appId": "fr.celya.celyavox.dev",
     "compression": "maximum",
     "files": [
       "main.js",
@@ -81,7 +81,7 @@
       "icon": "assets/icons",
       "category": "Network",
       "desktop": {
-        "Name": "CelyaVox",
+        "Name": "CelyaVox Dev",
         "Comment": "WebRTC SIP Phone",
         "Categories": "Network;Telephony;",
         "Keywords": "VoIP;SIP;Phone;Telephony;"
@@ -168,7 +168,8 @@
       ]
     },
     "deb": {
-      "afterInstall": "postinstall_debian.sh"
+      "afterInstall": "postinstall_debian.sh",
+      "artifactName": "celyavox-dev_${version}_${arch}.${ext}"
     },
     "extraMetadata": {
       "main": "main.js"
@@ -179,6 +180,8 @@
     "portable": {
       "artifactName": "${productName}-${version}.${ext}"
     },
-    "rpm": {}
+    "rpm": {
+      "artifactName": "celyavox-dev-${version}.${arch}.${ext}"
+    }
   }
 }
