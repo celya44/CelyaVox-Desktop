@@ -1,6 +1,6 @@
 {
   "name": "CelyaVox",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Electron wrapper for CelyaVox",
   "repository": {
     "type": "git",

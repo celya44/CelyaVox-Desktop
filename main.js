@@ -323,9 +323,11 @@ function showIncomingCallNotification(callerInfo = 'Appel entrant') {
   notificationWindow = new BrowserWindow({
     width: 350,
     height: 200,
+    show: false,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
+    focusable: false,
     skipTaskbar: true,
     resizable: false,
     movable: true,
@@ -350,6 +352,16 @@ function showIncomingCallNotification(callerInfo = 'Appel entrant') {
   
   notificationWindow.loadURL(fileUrl).catch(err => {
     console.error('❌ Erreur lors du chargement de notification-call.html:', err);
+  });
+
+  notificationWindow.once('ready-to-show', () => {
+    try {
+      // Afficher sans voler le focus
+      notificationWindow.showInactive();
+    } catch (e) {
+      // Fallback si showInactive n'est pas disponible
+      notificationWindow.show();
+    }
   });
   
   // Gérer les erreurs de chargement
