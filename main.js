@@ -132,6 +132,19 @@ async function createWindow() {
   });
 
   const serverUrl = config.serverUrl;
+  let connectivityDialogShown = false;
+
+  const showConnectivityError = (details) => {
+    if (connectivityDialogShown) return;
+    connectivityDialogShown = true;
+    console.error('❌ Échec de chargement URL:', details);
+    dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: 'Connexion Internet requise',
+      message: 'Impossible de charger l’application.',
+      detail: 'Veuillez contrôler la connectivité internet puis relancer l’application.'
+    });
+  };
   
   // Clear cache before loading (but keep localStorage for settings)
   await mainWindow.webContents.session.clearCache();
@@ -142,7 +155,15 @@ async function createWindow() {
     console.log('🔄 Rechargement sans cache...');
     mainWindow.webContents.reloadIgnoringCache();
   }).catch(err => {
-    dialog.showErrorBox('Erreur', `Impossible de charger l'application depuis le serveur: ${err.message}`);
+    showConnectivityError(err.message || err);
+  });
+
+  // Détecter les erreurs de chargement (ex: pas de connexion)
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return;
+    // Ignorer les navigations interrompues volontairement
+    if (errorCode === -3) return; // ERR_ABORTED
+    showConnectivityError(`${errorDescription} (code ${errorCode}) - ${validatedURL}`);
   });
 
   // Show when ready
