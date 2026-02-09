@@ -39,6 +39,7 @@ let mainWindow;
 let tray;
 let lastAutoFocusTs = 0;
 let notificationWindow = null;
+let lastAlreadyRunningDialogTs = 0;
 
 // ----------------------
 // Empêcher plusieurs instances
@@ -51,6 +52,16 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     console.log('⚠️ Tentative de lancement d\'une deuxième instance détectée');
+    const now = Date.now();
+    if (mainWindow && now - lastAlreadyRunningDialogTs > 3000) {
+      lastAlreadyRunningDialogTs = now;
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Application déjà ouverte',
+        message: 'L\'application est déjà en cours d\'exécution.',
+        detail: 'La fenêtre existante va être mise au premier plan.'
+      });
+    }
     // Afficher et mettre au premier plan la fenêtre existante
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -561,7 +572,7 @@ app.whenReady().then(async () => {
     }
     
     // Ajouter cache buster aux fichiers JS et CSS du serveur (dev ou prod)
-    const serverDomain = config.serverUrl.replace('https://', '').replace('http://', '');
+    const serverDomain = config.serverUrl.replace(/^https?:\/\//, '');
     if (details.url.includes(serverDomain) && 
         (details.url.endsWith('.js') || details.url.endsWith('.css'))) {
       const separator = details.url.includes('?') ? '&' : '?';
