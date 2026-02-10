@@ -53,12 +53,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build for Windows
         if: matrix.platform == 'windows'
-        env:
-          CS_PFX_PATH: ${{ github.workspace }}\ci-selfsigned.pfx
-          CS_PFX_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: npm run dist:win:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CS_PFX_PATH: ${{ github.workspace }}\ci-selfsigned.pfx
+          CS_PFX_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
           CSC_LINK: ${{ github.workspace }}\ci-selfsigned.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -75,12 +74,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build for Windows (dev)
         if: matrix.platform == 'windows'
-        env:
-          CS_PFX_PATH: ${{ github.workspace }}\ci-selfsigned.pfx
-          CS_PFX_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: npm run dist:win:dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CS_PFX_PATH: ${{ github.workspace }}\ci-selfsigned.pfx
+          CS_PFX_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
           CSC_LINK: ${{ github.workspace }}\ci-selfsigned.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
