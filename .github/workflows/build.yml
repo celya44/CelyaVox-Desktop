@@ -46,6 +46,9 @@ jobs:
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=CelyaVox CI" -CertStoreLocation "Cert:\CurrentUser\My" -KeyExportPolicy Exportable
           $pwd = ConvertTo-SecureString -String $env:CS_PFX_PASSWORD -Force -AsPlainText
           Export-PfxCertificate -Cert $cert -FilePath $env:CS_PFX_PATH -Password $pwd | Out-Null
+          $cerPath = Join-Path $env:GITHUB_WORKSPACE "ci-selfsigned.cer"
+          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+          Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
       - name: Build for Linux
         if: matrix.platform == 'linux'
         run: npm run dist:linux:prod
