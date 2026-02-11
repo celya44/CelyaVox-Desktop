@@ -43,12 +43,16 @@ jobs:
           CS_PFX_PATH: ${{ github.workspace }}\ci-selfsigned.pfx
           CS_PFX_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:CS_PFX_PASSWORD)) {
+            throw "WIN_CERT_PASSWORD is empty. Set secrets.WIN_CERT_PASSWORD."
+          }
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=CelyaVox CI" -CertStoreLocation "Cert:\CurrentUser\My" -KeyExportPolicy Exportable
           $pwd = ConvertTo-SecureString -String $env:CS_PFX_PASSWORD -Force -AsPlainText
-          Export-PfxCertificate -Cert $cert -FilePath $env:CS_PFX_PATH -Password $pwd | Out-Null
+          Export-PfxCertificate -Cert $cert -FilePath $env:CS_PFX_PATH -Password $pwd -Force | Out-Null
           $cerPath = Join-Path $env:GITHUB_WORKSPACE "ci-selfsigned.cer"
           Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-          Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+          Import-Certificate -FilePath $cerPath -CertStoreLocation "Cert:\CurrentUser\Root" -Confirm:$false | Out-Null
       - name: Build for Linux
         if: matrix.platform == 'linux'
         run: npm run dist:linux:prod
