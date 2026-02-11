@@ -57,7 +57,11 @@ jobs:
           Write-Host "[cert] Exporting CER to $cerPath";
           Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
           Write-Host "[cert] Trusting CER via certutil (CurrentUser Root)";
-          certutil.exe -user -addstore -f Root "$cerPath" | Out-Null
+          $certutil = Start-Process -FilePath certutil.exe -ArgumentList @('-user','-addstore','-f','Root',"$cerPath") -NoNewWindow -PassThru
+          if (-not (Wait-Process -Id $certutil.Id -Timeout 30 -ErrorAction SilentlyContinue)) {
+            Write-Host "[cert] certutil timed out; skipping trust import";
+            Stop-Process -Id $certutil.Id -Force -ErrorAction SilentlyContinue
+          }
           Write-Host "[cert] Done";
       - name: Build for Linux
         if: matrix.platform == 'linux'
