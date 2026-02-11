@@ -56,7 +56,8 @@ jobs:
           $cerPath = Join-Path $env:GITHUB_WORKSPACE "ci-selfsigned.cer"
           Write-Host "[cert] Exporting CER to $cerPath";
           Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-          Write-Host "[cert] Skipping import to Root store on CI";
+          Write-Host "[cert] Trusting CER via certutil (CurrentUser Root)";
+          certutil.exe -user -addstore -f Root "$cerPath" | Out-Null
           Write-Host "[cert] Done";
       - name: Build for Linux
         if: matrix.platform == 'linux'
