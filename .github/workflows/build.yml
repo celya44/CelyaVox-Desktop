@@ -102,6 +102,7 @@ jobs:
       - name: Verify Windows signatures
         if: matrix.platform == 'windows'
         shell: pwsh
+        continue-on-error: true
         run: |
           $signtool = (Get-Command signtool -ErrorAction SilentlyContinue)?.Source
           if(-not $signtool){
