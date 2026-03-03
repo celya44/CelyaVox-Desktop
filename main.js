@@ -40,6 +40,8 @@ let tray;
 let lastAutoFocusTs = 0;
 let notificationWindow = null;
 let lastAlreadyRunningDialogTs = 0;
+let pendingTrayLeftMenuRequest = null;
+let pendingTrayLeftMenuRequestId = 0;
 
 // ----------------------
 // Empêcher plusieurs instances
@@ -521,6 +523,19 @@ ipcMain.on('call-cancelled', () => {
 });
 
 // ----------------------
+// IPC: Tray left-click menu data
+// ----------------------
+ipcMain.on('tray-left-menu-response', (event, payload) => {
+  if (!pendingTrayLeftMenuRequest) return;
+  const requestId = payload && payload.requestId;
+  if (requestId !== pendingTrayLeftMenuRequest.id) return;
+  clearTimeout(pendingTrayLeftMenuRequest.timeout);
+  const resolve = pendingTrayLeftMenuRequest.resolve;
+  pendingTrayLeftMenuRequest = null;
+  resolve((payload && payload.data) || {});
+});
+
+// ----------------------
 // IPC DB API
 // ----------------------
 ipcMain.handle('db-get', (event, key) => null);
@@ -669,7 +684,7 @@ app.whenReady().then(async () => {
 
   tray = new Tray(trayImage);
 
-  const trayMenu = Menu.buildFromTemplate([
+  const rightClickMenu = Menu.buildFromTemplate([
     {
       label: 'Afficher la fenêtre',
       click: () => {
@@ -688,8 +703,82 @@ app.whenReady().then(async () => {
     }
   ]);
 
+  function buildLeftClickMenu(data) {
+    const items = [];
+    const hasActiveCall = !!(data && data.hasActiveCall);
+    const favorites = Array.isArray(data && data.favorites) ? data.favorites : [];
+
+    if (hasActiveCall) {
+      items.push({
+        label: 'Raccrocher',
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('tray-hangup');
+          }
+        }
+      });
+      items.push({ type: 'separator' });
+    }
+
+    if (favorites.length > 0) {
+      favorites.forEach((fav) => {
+        const name = (fav && fav.name) ? String(fav.name).trim() : '';
+        const number = (fav && fav.number) ? String(fav.number).trim() : '';
+        if (!number) return;
+        const label = name ? `${name} (${number})` : number;
+        items.push({
+          label,
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('tray-dial', number);
+            }
+          }
+        });
+      });
+    } else {
+      items.push({ label: 'Aucun favori', enabled: false });
+    }
+
+    return Menu.buildFromTemplate(items);
+  }
+
+  function requestTrayLeftMenuData() {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return Promise.resolve({ hasActiveCall: false, favorites: [] });
+    }
+
+    if (pendingTrayLeftMenuRequest) {
+      clearTimeout(pendingTrayLeftMenuRequest.timeout);
+      pendingTrayLeftMenuRequest.resolve({ hasActiveCall: false, favorites: [] });
+      pendingTrayLeftMenuRequest = null;
+    }
+
+    const requestId = ++pendingTrayLeftMenuRequestId;
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        if (pendingTrayLeftMenuRequest && pendingTrayLeftMenuRequest.id === requestId) {
+          pendingTrayLeftMenuRequest = null;
+          resolve({ hasActiveCall: false, favorites: [] });
+        }
+      }, 1200);
+
+      pendingTrayLeftMenuRequest = { id: requestId, resolve, timeout };
+      mainWindow.webContents.send('tray-left-menu-request', { requestId });
+    });
+  }
+
   tray.setToolTip(config.appName);
-  tray.setContextMenu(trayMenu);
+  tray.setContextMenu(rightClickMenu);
+
+  tray.on('click', async () => {
+    const data = await requestTrayLeftMenuData();
+    const leftMenu = buildLeftClickMenu(data);
+    tray.popUpContextMenu(leftMenu);
+  });
+
+  tray.on('right-click', () => {
+    tray.popUpContextMenu(rightClickMenu);
+  });
 
   tray.on('double-click', () => {
     mainWindow.show();
