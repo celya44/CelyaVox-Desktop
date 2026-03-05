@@ -768,16 +768,15 @@ app.whenReady().then(async () => {
   }
 
   tray.setToolTip(config.appName);
-  tray.setContextMenu(rightClickMenu);
-
-  tray.on('click', async () => {
+  // Ne pas utiliser setContextMenu ici: sous Linux, cela force le menu au clic gauche.
+  tray.on('mouse-up', async (event) => {
+    if (event && event.button === 2) {
+      tray.popUpContextMenu(rightClickMenu);
+      return;
+    }
     const data = await requestTrayLeftMenuData();
     const leftMenu = buildLeftClickMenu(data);
     tray.popUpContextMenu(leftMenu);
-  });
-
-  tray.on('right-click', () => {
-    tray.popUpContextMenu(rightClickMenu);
   });
 
   tray.on('double-click', () => {
