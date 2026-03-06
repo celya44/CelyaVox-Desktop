@@ -42,6 +42,94 @@ let notificationWindow = null;
 let lastAlreadyRunningDialogTs = 0;
 let pendingTrayLeftMenuRequest = null;
 let pendingTrayLeftMenuRequestId = 0;
+let trayLeftMenuCache = { hasActiveCall: false, favorites: [] };
+let pendingTelNumber = null;
+
+const TEL_PROTOCOL = 'tel';
+
+function normalizeTelUrl(url) {
+  if (!url) return '';
+  const trimmed = String(url).trim();
+  if (!/^tel:/i.test(trimmed)) return '';
+  let value = trimmed.replace(/^tel:/i, '');
+  if (value.startsWith('//')) value = value.slice(2);
+  value = value.split(/[;?]/)[0];
+  return decodeURIComponent(value).trim();
+}
+
+function extractTelUrlFromArgs(args) {
+  if (!Array.isArray(args)) return '';
+  const found = args.find(arg => typeof arg === 'string' && /^tel:/i.test(arg.trim()));
+  return found || '';
+}
+
+function sendTelToRenderer(number) {
+  if (!number) return;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    pendingTelNumber = number;
+    return;
+  }
+  if (mainWindow.webContents && mainWindow.webContents.isLoading()) {
+    pendingTelNumber = number;
+    return;
+  }
+  try { mainWindow.restore(); } catch {}
+  mainWindow.show();
+  try { mainWindow.focus(); } catch {}
+  mainWindow.webContents.send('tray-dial', number);
+}
+
+function handleTelUrl(url) {
+  const number = normalizeTelUrl(url);
+  if (!number) return false;
+  sendTelToRenderer(number);
+  return true;
+}
+
+function registerTelProtocolClient() {
+  const options = getProtocolClientOptions();
+  if (options) {
+    const ok = app.setAsDefaultProtocolClient(TEL_PROTOCOL, options.path, options.args);
+    console.log(`📞 setAsDefaultProtocolClient(${TEL_PROTOCOL}) dev: ${ok}`);
+    return ok;
+  }
+  const ok = app.setAsDefaultProtocolClient(TEL_PROTOCOL);
+  console.log(`📞 setAsDefaultProtocolClient(${TEL_PROTOCOL}): ${ok}`);
+  return ok;
+}
+
+function getProtocolClientOptions() {
+  if (process.defaultApp && process.argv.length >= 2) {
+    const appPath = path.resolve(process.argv[1]);
+    return { path: process.execPath, args: [appPath] };
+  }
+  return null;
+}
+
+function isDefaultTelProtocolClient() {
+  const options = getProtocolClientOptions();
+  if (options) {
+    return app.isDefaultProtocolClient(TEL_PROTOCOL, options.path, options.args);
+  }
+  return app.isDefaultProtocolClient(TEL_PROTOCOL);
+}
+
+async function promptToRegisterTelProtocolClient() {
+  if (isDefaultTelProtocolClient()) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    title: 'Gestionnaire tel: par defaut',
+    message: "CelyaVox n'est pas le gestionnaire par defaut pour les liens tel:.",
+    detail: 'Souhaitez-vous definir CelyaVox comme gestionnaire par defaut ? ',
+    buttons: ['Oui', 'Non'],
+    defaultId: 0,
+    cancelId: 1
+  });
+  if (result.response === 0) {
+    registerTelProtocolClient();
+  }
+}
 
 // ----------------------
 // Empêcher plusieurs instances
@@ -54,8 +142,12 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     console.log('⚠️ Tentative de lancement d\'une deuxième instance détectée');
+    const telUrl = extractTelUrlFromArgs(commandLine);
+    if (telUrl) {
+      handleTelUrl(telUrl);
+    }
     const now = Date.now();
-    if (mainWindow && now - lastAlreadyRunningDialogTs > 3000) {
+    if (!telUrl && mainWindow && now - lastAlreadyRunningDialogTs > 3000) {
       lastAlreadyRunningDialogTs = now;
       dialog.showMessageBox(mainWindow, {
         type: 'info',
@@ -72,6 +164,16 @@ if (!gotTheLock) {
       if (process.platform === 'darwin') app.dock.show();
     }
   });
+}
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleTelUrl(url);
+});
+
+const initialTelUrl = extractTelUrlFromArgs(process.argv);
+if (initialTelUrl) {
+  pendingTelNumber = normalizeTelUrl(initialTelUrl);
 }
 
 // ----------------------
@@ -259,6 +361,12 @@ async function createWindow() {
     mainWindow.webContents.executeJavaScript(script).catch(err => {
       console.error('❌ Erreur injection versions:', err);
     });
+
+    if (pendingTelNumber) {
+      const number = pendingTelNumber;
+      pendingTelNumber = null;
+      sendTelToRenderer(number);
+    }
   });
 
   // Media permissions - accorder toutes les permissions media
@@ -532,7 +640,20 @@ ipcMain.on('tray-left-menu-response', (event, payload) => {
   clearTimeout(pendingTrayLeftMenuRequest.timeout);
   const resolve = pendingTrayLeftMenuRequest.resolve;
   pendingTrayLeftMenuRequest = null;
-  resolve((payload && payload.data) || {});
+  const data = (payload && payload.data) || {};
+  trayLeftMenuCache = {
+    hasActiveCall: !!data.hasActiveCall,
+    favorites: Array.isArray(data.favorites) ? data.favorites : []
+  };
+  resolve(data);
+});
+
+ipcMain.on('tray-left-menu-cache', (event, payload) => {
+  const data = (payload && payload.data) || {};
+  trayLeftMenuCache = {
+    hasActiveCall: !!data.hasActiveCall,
+    favorites: Array.isArray(data.favorites) ? data.favorites : []
+  };
 });
 
 // ----------------------
@@ -562,6 +683,7 @@ ipcMain.on('get-app-info-sync', (event) => {
 // App ready
 // ----------------------
 app.whenReady().then(async () => {
+  registerTelProtocolClient();
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     console.log('🔐 Permission globale demandée:', permission);
     const allowedPermissions = ['media', 'mediaDevices', 'video', 'audio', 'audioCapture', 'videoCapture'];
@@ -635,7 +757,10 @@ app.whenReady().then(async () => {
     mainWindow.webContents.send('reject-call');
   });
 
-  createWindow();
+  await createWindow();
+  promptToRegisterTelProtocolClient().catch(err => {
+    console.error('❌ Erreur prompt handler tel:', err);
+  });
   // wireIncomingCallDetectors(mainWindow); // Désactivé - utilise IPC maintenant
 
   // Heuristique désactivée: on utilise maintenant le système IPC dédié
@@ -774,9 +899,12 @@ app.whenReady().then(async () => {
       tray.popUpContextMenu(rightClickMenu);
       return;
     }
-    const data = await requestTrayLeftMenuData();
-    const leftMenu = buildLeftClickMenu(data);
-    tray.popUpContextMenu(leftMenu);
+
+    const cachedMenu = buildLeftClickMenu(trayLeftMenuCache);
+    tray.popUpContextMenu(cachedMenu);
+
+    // Refresh cache in the background for next click
+    requestTrayLeftMenuData().catch(() => {});
   });
 
   tray.on('double-click', () => {

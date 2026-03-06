@@ -48,6 +48,14 @@
   "build": {
     "productName": "celyavox-dev",
     "appId": "fr.celya.celyavox.dev",
+    "protocols": [
+      {
+        "name": "Telephone",
+        "schemes": [
+          "tel"
+        ]
+      }
+    ],
     "compression": "maximum",
     "files": [
       "main.js",
