@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tray Menu</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --fg: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --hover: #eef2f7;
+      --accent: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-size: 13px;
+    }
+    .menu {
+      padding: 6px 0;
+      min-width: 240px;
+    }
+    .item {
+      width: 100%;
+      padding: 8px 14px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      font: inherit;
+      color: var(--fg);
+      cursor: pointer;
+    }
+    .item:hover { background: var(--hover); }
+    .item:disabled {
+      color: var(--muted);
+      cursor: default;
+    }
+    .separator {
+      height: 1px;
+      background: var(--border);
+      margin: 6px 10px;
+    }
+    .label-muted { color: var(--muted); }
+    .title {
+      padding: 6px 14px 4px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div id="menu" class="menu"></div>
+
+  <script>
+    const menuEl = document.getElementById('menu');
+
+    function clearMenu() {
+      while (menuEl.firstChild) menuEl.removeChild(menuEl.firstChild);
+    }
+
+    function addSeparator() {
+      const sep = document.createElement('div');
+      sep.className = 'separator';
+      menuEl.appendChild(sep);
+    }
+
+    function addItem(item) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'item';
+      btn.textContent = item.label || '';
+      if (item.disabled) {
+        btn.disabled = true;
+      } else {
+        btn.addEventListener('click', () => {
+          if (window.electron && typeof window.electron.send === 'function') {
+            window.electron.send('tray-menu-action', { action: item.action, value: item.value });
+          }
+        });
+      }
+      menuEl.appendChild(btn);
+    }
+
+    function renderMenu(payload) {
+      clearMenu();
+      const items = (payload && Array.isArray(payload.items)) ? payload.items : [];
+      if (items.length === 0) {
+        addItem({ label: 'Aucun element', disabled: true });
+        return;
+      }
+      items.forEach((item) => {
+        if (!item) return;
+        if (item.type === 'separator') {
+          addSeparator();
+        } else {
+          addItem(item);
+        }
+      });
+    }
+
+    if (window.electron && typeof window.electron.on === 'function') {
+      window.electron.on('tray-menu-open', (payload) => {
+        renderMenu(payload);
+      });
+    }
+  </script>
+</body>
+</html>

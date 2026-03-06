@@ -43,6 +43,8 @@ let lastAlreadyRunningDialogTs = 0;
 let pendingTrayLeftMenuRequest = null;
 let pendingTrayLeftMenuRequestId = 0;
 let trayLeftMenuCache = { hasActiveCall: false, favorites: [] };
+let trayMenuWindow = null;
+let trayMenuWindowReady = false;
 let pendingTelNumber = null;
 
 const TEL_PROTOCOL = 'tel';
@@ -656,6 +658,42 @@ ipcMain.on('tray-left-menu-cache', (event, payload) => {
   };
 });
 
+ipcMain.on('tray-menu-action', (event, payload) => {
+  const action = payload && payload.action;
+  const value = payload && payload.value;
+  if (trayMenuWindow && !trayMenuWindow.isDestroyed()) {
+    trayMenuWindow.hide();
+  }
+  if (!action) return;
+
+  if (action === 'show-window') {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      if (process.platform === 'darwin') app.dock.show();
+    }
+    return;
+  }
+  if (action === 'quit') {
+    app.isQuiting = true;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.destroy();
+    }
+    app.quit();
+    return;
+  }
+  if (action === 'hangup') {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('tray-hangup');
+    }
+    return;
+  }
+  if (action === 'dial') {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('tray-dial', value);
+    }
+  }
+});
+
 // ----------------------
 // IPC DB API
 // ----------------------
@@ -809,39 +847,13 @@ app.whenReady().then(async () => {
 
   tray = new Tray(trayImage);
 
-  const rightClickMenu = Menu.buildFromTemplate([
-    {
-      label: 'Afficher la fenêtre',
-      click: () => {
-        mainWindow.show();
-        if (process.platform === 'darwin') app.dock.show(); // 🍎 restaure le dock
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Quitter',
-      click: () => {
-        app.isQuiting = true;
-        mainWindow.destroy();
-        app.quit();
-      }
-    }
-  ]);
-
-  function buildLeftClickMenu(data) {
+  function buildLeftClickMenuData(data) {
     const items = [];
     const hasActiveCall = !!(data && data.hasActiveCall);
     const favorites = Array.isArray(data && data.favorites) ? data.favorites : [];
 
     if (hasActiveCall) {
-      items.push({
-        label: 'Raccrocher',
-        click: () => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('tray-hangup');
-          }
-        }
-      });
+      items.push({ label: 'Raccrocher', action: 'hangup' });
       items.push({ type: 'separator' });
     }
 
@@ -851,20 +863,108 @@ app.whenReady().then(async () => {
         const number = (fav && fav.number) ? String(fav.number).trim() : '';
         if (!number) return;
         const label = name ? `${name} (${number})` : number;
-        items.push({
-          label,
-          click: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('tray-dial', number);
-            }
-          }
-        });
+        items.push({ label, action: 'dial', value: number });
       });
     } else {
-      items.push({ label: 'Aucun favori', enabled: false });
+      items.push({ label: 'Aucun favori', disabled: true });
     }
 
-    return Menu.buildFromTemplate(items);
+    return items;
+  }
+
+  function buildRightClickMenuData() {
+    return [
+      { label: 'Afficher la fenêtre', action: 'show-window' },
+      { type: 'separator' },
+      { label: 'Quitter', action: 'quit' }
+    ];
+  }
+
+  function ensureTrayMenuWindow() {
+    if (trayMenuWindow && !trayMenuWindow.isDestroyed()) return;
+    trayMenuWindowReady = false;
+    trayMenuWindow = new BrowserWindow({
+      width: 280,
+      height: 320,
+      show: false,
+      frame: false,
+      resizable: false,
+      transparent: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: true,
+      backgroundColor: '#f7f7f7',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+
+    trayMenuWindow.loadFile(path.join(__dirname, 'tray-menu.html')).catch((err) => {
+      console.error('❌ Erreur chargement tray-menu.html:', err);
+    });
+
+    trayMenuWindow.webContents.on('did-finish-load', () => {
+      trayMenuWindowReady = true;
+    });
+
+    trayMenuWindow.on('blur', () => {
+      if (trayMenuWindow && !trayMenuWindow.isDestroyed()) {
+        trayMenuWindow.hide();
+      }
+    });
+
+    trayMenuWindow.on('closed', () => {
+      trayMenuWindow = null;
+      trayMenuWindowReady = false;
+    });
+  }
+
+  function positionTrayMenuWindow(height) {
+    if (!tray || !trayMenuWindow) return;
+    const bounds = tray.getBounds();
+    const { screen } = require('electron');
+    const display = screen.getPrimaryDisplay();
+    const workArea = display.workArea;
+    const width = 280;
+    const x = Math.min(
+      Math.max(workArea.x + 8, Math.round(bounds.x + bounds.width / 2 - width / 2)),
+      workArea.x + workArea.width - width - 8
+    );
+    const y = Math.min(
+      Math.max(workArea.y + 8, Math.round(bounds.y + bounds.height + 6)),
+      workArea.y + workArea.height - height - 8
+    );
+    trayMenuWindow.setBounds({ x, y, width, height }, false);
+  }
+
+  function openTrayMenu(type, items) {
+    ensureTrayMenuWindow();
+    const base = Array.isArray(items) ? items : [];
+    const itemCount = base.filter((it) => it && it.type !== 'separator').length;
+    const height = Math.min(420, 16 + itemCount * 36 + base.filter((it) => it && it.type === 'separator').length * 12);
+    if (trayMenuWindow && !trayMenuWindow.isDestroyed()) {
+      positionTrayMenuWindow(height);
+      if (trayMenuWindowReady) {
+        trayMenuWindow.webContents.send('tray-menu-open', { type, items: base });
+        try {
+          trayMenuWindow.showInactive();
+        } catch (e) {
+          trayMenuWindow.show();
+        }
+      } else {
+        trayMenuWindow.webContents.once('did-finish-load', () => {
+          if (!trayMenuWindow || trayMenuWindow.isDestroyed()) return;
+          trayMenuWindow.webContents.send('tray-menu-open', { type, items: base });
+          try {
+            trayMenuWindow.showInactive();
+          } catch (e) {
+            trayMenuWindow.show();
+          }
+        });
+      }
+    }
   }
 
   function requestTrayLeftMenuData() {
@@ -896,14 +996,13 @@ app.whenReady().then(async () => {
   // Ne pas utiliser setContextMenu ici: sous Linux, cela force le menu au clic gauche.
   tray.on('mouse-up', async (event) => {
     if (event && event.button === 2) {
-      tray.popUpContextMenu(rightClickMenu);
+      const rightItems = buildRightClickMenuData();
+      openTrayMenu('right', rightItems);
       return;
     }
 
-    const cachedMenu = buildLeftClickMenu(trayLeftMenuCache);
-    tray.popUpContextMenu(cachedMenu);
-
-    // Refresh cache in the background for next click
+    const leftItems = buildLeftClickMenuData(trayLeftMenuCache);
+    openTrayMenu('left', leftItems);
     requestTrayLeftMenuData().catch(() => {});
   });
 
