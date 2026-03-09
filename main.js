@@ -40,12 +40,7 @@ let tray;
 let lastAutoFocusTs = 0;
 let notificationWindow = null;
 let lastAlreadyRunningDialogTs = 0;
-let pendingTrayLeftMenuRequest = null;
-let pendingTrayLeftMenuRequestId = 0;
 let trayLeftMenuCache = { hasActiveCall: false, favorites: [] };
-let trayMenuWindow = null;
-let trayMenuWindowReady = false;
-let useNativeTrayMenu = false;
 let updateNativeTrayMenu = null;
 let pendingTelNumber = null;
 
@@ -634,71 +629,14 @@ ipcMain.on('call-cancelled', () => {
   }
 });
 
-// ----------------------
-// IPC: Tray left-click menu data
-// ----------------------
-ipcMain.on('tray-left-menu-response', (event, payload) => {
-  if (!pendingTrayLeftMenuRequest) return;
-  const requestId = payload && payload.requestId;
-  if (requestId !== pendingTrayLeftMenuRequest.id) return;
-  clearTimeout(pendingTrayLeftMenuRequest.timeout);
-  const resolve = pendingTrayLeftMenuRequest.resolve;
-  pendingTrayLeftMenuRequest = null;
-  const data = (payload && payload.data) || {};
-  trayLeftMenuCache = {
-    hasActiveCall: !!data.hasActiveCall,
-    favorites: Array.isArray(data.favorites) ? data.favorites : []
-  };
-  if (useNativeTrayMenu && typeof updateNativeTrayMenu === 'function') {
-    updateNativeTrayMenu();
-  }
-  resolve(data);
-});
-
 ipcMain.on('tray-left-menu-cache', (event, payload) => {
   const data = (payload && payload.data) || {};
   trayLeftMenuCache = {
     hasActiveCall: !!data.hasActiveCall,
     favorites: Array.isArray(data.favorites) ? data.favorites : []
   };
-  if (useNativeTrayMenu && typeof updateNativeTrayMenu === 'function') {
+  if (typeof updateNativeTrayMenu === 'function') {
     updateNativeTrayMenu();
-  }
-});
-
-ipcMain.on('tray-menu-action', (event, payload) => {
-  const action = payload && payload.action;
-  const value = payload && payload.value;
-  if (trayMenuWindow && !trayMenuWindow.isDestroyed()) {
-    trayMenuWindow.hide();
-  }
-  if (!action) return;
-
-  if (action === 'show-window') {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      if (process.platform === 'darwin') app.dock.show();
-    }
-    return;
-  }
-  if (action === 'quit') {
-    app.isQuiting = true;
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.destroy();
-    }
-    app.quit();
-    return;
-  }
-  if (action === 'hangup') {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('tray-hangup');
-    }
-    return;
-  }
-  if (action === 'dial') {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('tray-dial', value);
-    }
   }
 });
 
@@ -854,44 +792,6 @@ app.whenReady().then(async () => {
   }
 
   tray = new Tray(trayImage);
-  console.log('🧭 Tray created, bounds:', tray.getBounds());
-
-  const trayBounds = tray.getBounds();
-  useNativeTrayMenu = process.platform === 'linux' && trayBounds.width === 0 && trayBounds.height === 0;
-  console.log('🧭 Tray native menu fallback:', useNativeTrayMenu);
-
-  function buildLeftClickMenuData(data) {
-    const items = [];
-    const hasActiveCall = !!(data && data.hasActiveCall);
-    const favorites = Array.isArray(data && data.favorites) ? data.favorites : [];
-
-    if (hasActiveCall) {
-      items.push({ label: 'Raccrocher', action: 'hangup' });
-      items.push({ type: 'separator' });
-    }
-
-    if (favorites.length > 0) {
-      favorites.forEach((fav) => {
-        const name = (fav && fav.name) ? String(fav.name).trim() : '';
-        const number = (fav && fav.number) ? String(fav.number).trim() : '';
-        if (!number) return;
-        const label = name ? `${name} (${number})` : number;
-        items.push({ label, action: 'dial', value: number });
-      });
-    } else {
-      items.push({ label: 'Aucun favori', disabled: true });
-    }
-
-    return items;
-  }
-
-  function buildRightClickMenuData() {
-    return [
-      { label: 'Afficher la fenêtre', action: 'show-window' },
-      { type: 'separator' },
-      { label: 'Quitter', action: 'quit' }
-    ];
-  }
 
   function buildNativeTrayMenu() {
     const items = [
@@ -956,153 +856,10 @@ app.whenReady().then(async () => {
     if (!tray || tray.isDestroyed()) return;
     tray.setContextMenu(buildNativeTrayMenu());
   };
-
-  if (useNativeTrayMenu) {
-    updateNativeTrayMenu();
-  }
-
-  function ensureTrayMenuWindow() {
-    if (trayMenuWindow && !trayMenuWindow.isDestroyed()) return;
-    trayMenuWindowReady = false;
-    console.log('🧭 Creating tray menu window');
-    trayMenuWindow = new BrowserWindow({
-      width: 280,
-      height: 320,
-      show: false,
-      frame: false,
-      resizable: false,
-      transparent: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      focusable: true,
-      backgroundColor: '#f7f7f7',
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false
-      }
-    });
-
-    trayMenuWindow.loadFile(path.join(__dirname, 'tray-menu.html')).catch((err) => {
-      console.error('❌ Erreur chargement tray-menu.html:', err);
-    });
-
-    trayMenuWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-      console.error('❌ tray-menu load failed:', errorCode, errorDescription);
-    });
-
-    trayMenuWindow.webContents.on('did-finish-load', () => {
-      trayMenuWindowReady = true;
-      console.log('✅ tray-menu loaded');
-    });
-
-    trayMenuWindow.on('blur', () => {
-      if (trayMenuWindow && !trayMenuWindow.isDestroyed()) {
-        trayMenuWindow.hide();
-      }
-    });
-
-    trayMenuWindow.on('closed', () => {
-      trayMenuWindow = null;
-      trayMenuWindowReady = false;
-    });
-  }
-
-  function positionTrayMenuWindow(height) {
-    if (!tray || !trayMenuWindow) return;
-    const bounds = tray.getBounds();
-    const { screen } = require('electron');
-    const display = screen.getPrimaryDisplay();
-    const workArea = display.workArea;
-    const width = 280;
-    const x = Math.min(
-      Math.max(workArea.x + 8, Math.round(bounds.x + bounds.width / 2 - width / 2)),
-      workArea.x + workArea.width - width - 8
-    );
-    const y = Math.min(
-      Math.max(workArea.y + 8, Math.round(bounds.y + bounds.height + 6)),
-      workArea.y + workArea.height - height - 8
-    );
-    trayMenuWindow.setBounds({ x, y, width, height }, false);
-  }
-
-  function openTrayMenu(type, items) {
-    ensureTrayMenuWindow();
-    const base = Array.isArray(items) ? items : [];
-    const itemCount = base.filter((it) => it && it.type !== 'separator').length;
-    const height = Math.min(420, 16 + itemCount * 36 + base.filter((it) => it && it.type === 'separator').length * 12);
-    if (trayMenuWindow && !trayMenuWindow.isDestroyed()) {
-      console.log('🧭 openTrayMenu', type, 'items:', base.length);
-      positionTrayMenuWindow(height);
-      if (trayMenuWindowReady) {
-        trayMenuWindow.webContents.send('tray-menu-open', { type, items: base });
-        try {
-          trayMenuWindow.showInactive();
-        } catch (e) {
-          trayMenuWindow.show();
-        }
-      } else {
-        trayMenuWindow.webContents.once('did-finish-load', () => {
-          if (!trayMenuWindow || trayMenuWindow.isDestroyed()) return;
-          trayMenuWindow.webContents.send('tray-menu-open', { type, items: base });
-          try {
-            trayMenuWindow.showInactive();
-          } catch (e) {
-            trayMenuWindow.show();
-          }
-        });
-      }
-    }
-  }
-
-  function requestTrayLeftMenuData() {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return Promise.resolve({ hasActiveCall: false, favorites: [] });
-    }
-
-    if (pendingTrayLeftMenuRequest) {
-      clearTimeout(pendingTrayLeftMenuRequest.timeout);
-      pendingTrayLeftMenuRequest.resolve({ hasActiveCall: false, favorites: [] });
-      pendingTrayLeftMenuRequest = null;
-    }
-
-    const requestId = ++pendingTrayLeftMenuRequestId;
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        if (pendingTrayLeftMenuRequest && pendingTrayLeftMenuRequest.id === requestId) {
-          pendingTrayLeftMenuRequest = null;
-          resolve({ hasActiveCall: false, favorites: [] });
-        }
-      }, 1200);
-
-      pendingTrayLeftMenuRequest = { id: requestId, resolve, timeout };
-      mainWindow.webContents.send('tray-left-menu-request', { requestId });
-    });
-  }
+  updateNativeTrayMenu();
 
   tray.setToolTip(config.appName);
-  // Ne pas utiliser setContextMenu ici: sous Linux, cela force le menu au clic gauche.
-  tray.on('mouse-up', async (event) => {
-    if (useNativeTrayMenu) return;
-    console.log('🧭 tray mouse-up', event && event.button);
-    if (event && event.button === 2) {
-      const rightItems = buildRightClickMenuData();
-      openTrayMenu('right', rightItems);
-      return;
-    }
 
-    const leftItems = buildLeftClickMenuData(trayLeftMenuCache);
-    openTrayMenu('left', leftItems);
-    requestTrayLeftMenuData().catch(() => {});
-  });
-
-  tray.on('click', () => {
-    console.log('🧭 tray click');
-  });
-
-  tray.on('right-click', () => {
-    console.log('🧭 tray right-click');
-  });
 
   tray.on('double-click', () => {
     mainWindow.show();
