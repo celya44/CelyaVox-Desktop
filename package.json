@@ -61,6 +61,7 @@
       "main.js",
       "preload.js",
       "notification-call.html",
+      "tray-menu.html",
       "enable-text-selection.css",
       "config.js",
       "package.json",
