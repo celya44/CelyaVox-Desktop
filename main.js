@@ -846,6 +846,7 @@ app.whenReady().then(async () => {
   }
 
   tray = new Tray(trayImage);
+  console.log('🧭 Tray created, bounds:', tray.getBounds());
 
   function buildLeftClickMenuData(data) {
     const items = [];
@@ -883,6 +884,7 @@ app.whenReady().then(async () => {
   function ensureTrayMenuWindow() {
     if (trayMenuWindow && !trayMenuWindow.isDestroyed()) return;
     trayMenuWindowReady = false;
+    console.log('🧭 Creating tray menu window');
     trayMenuWindow = new BrowserWindow({
       width: 280,
       height: 320,
@@ -905,8 +907,13 @@ app.whenReady().then(async () => {
       console.error('❌ Erreur chargement tray-menu.html:', err);
     });
 
+    trayMenuWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      console.error('❌ tray-menu load failed:', errorCode, errorDescription);
+    });
+
     trayMenuWindow.webContents.on('did-finish-load', () => {
       trayMenuWindowReady = true;
+      console.log('✅ tray-menu loaded');
     });
 
     trayMenuWindow.on('blur', () => {
@@ -945,6 +952,7 @@ app.whenReady().then(async () => {
     const itemCount = base.filter((it) => it && it.type !== 'separator').length;
     const height = Math.min(420, 16 + itemCount * 36 + base.filter((it) => it && it.type === 'separator').length * 12);
     if (trayMenuWindow && !trayMenuWindow.isDestroyed()) {
+      console.log('🧭 openTrayMenu', type, 'items:', base.length);
       positionTrayMenuWindow(height);
       if (trayMenuWindowReady) {
         trayMenuWindow.webContents.send('tray-menu-open', { type, items: base });
@@ -995,6 +1003,7 @@ app.whenReady().then(async () => {
   tray.setToolTip(config.appName);
   // Ne pas utiliser setContextMenu ici: sous Linux, cela force le menu au clic gauche.
   tray.on('mouse-up', async (event) => {
+    console.log('🧭 tray mouse-up', event && event.button);
     if (event && event.button === 2) {
       const rightItems = buildRightClickMenuData();
       openTrayMenu('right', rightItems);
@@ -1004,6 +1013,14 @@ app.whenReady().then(async () => {
     const leftItems = buildLeftClickMenuData(trayLeftMenuCache);
     openTrayMenu('left', leftItems);
     requestTrayLeftMenuData().catch(() => {});
+  });
+
+  tray.on('click', () => {
+    console.log('🧭 tray click');
+  });
+
+  tray.on('right-click', () => {
+    console.log('🧭 tray right-click');
   });
 
   tray.on('double-click', () => {
