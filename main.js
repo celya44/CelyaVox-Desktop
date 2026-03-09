@@ -45,6 +45,8 @@ let pendingTrayLeftMenuRequestId = 0;
 let trayLeftMenuCache = { hasActiveCall: false, favorites: [] };
 let trayMenuWindow = null;
 let trayMenuWindowReady = false;
+let useNativeTrayMenu = false;
+let updateNativeTrayMenu = null;
 let pendingTelNumber = null;
 
 const TEL_PROTOCOL = 'tel';
@@ -647,6 +649,9 @@ ipcMain.on('tray-left-menu-response', (event, payload) => {
     hasActiveCall: !!data.hasActiveCall,
     favorites: Array.isArray(data.favorites) ? data.favorites : []
   };
+  if (useNativeTrayMenu && typeof updateNativeTrayMenu === 'function') {
+    updateNativeTrayMenu();
+  }
   resolve(data);
 });
 
@@ -656,6 +661,9 @@ ipcMain.on('tray-left-menu-cache', (event, payload) => {
     hasActiveCall: !!data.hasActiveCall,
     favorites: Array.isArray(data.favorites) ? data.favorites : []
   };
+  if (useNativeTrayMenu && typeof updateNativeTrayMenu === 'function') {
+    updateNativeTrayMenu();
+  }
 });
 
 ipcMain.on('tray-menu-action', (event, payload) => {
@@ -848,6 +856,10 @@ app.whenReady().then(async () => {
   tray = new Tray(trayImage);
   console.log('🧭 Tray created, bounds:', tray.getBounds());
 
+  const trayBounds = tray.getBounds();
+  useNativeTrayMenu = process.platform === 'linux' && trayBounds.width === 0 && trayBounds.height === 0;
+  console.log('🧭 Tray native menu fallback:', useNativeTrayMenu);
+
   function buildLeftClickMenuData(data) {
     const items = [];
     const hasActiveCall = !!(data && data.hasActiveCall);
@@ -879,6 +891,74 @@ app.whenReady().then(async () => {
       { type: 'separator' },
       { label: 'Quitter', action: 'quit' }
     ];
+  }
+
+  function buildNativeTrayMenu() {
+    const items = [
+      {
+        label: 'Afficher la fenêtre',
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            if (process.platform === 'darwin') app.dock.show();
+          }
+        }
+      },
+      {
+        label: 'Quitter',
+        click: () => {
+          app.isQuiting = true;
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.destroy();
+          }
+          app.quit();
+        }
+      },
+      { type: 'separator' }
+    ];
+
+    if (trayLeftMenuCache.hasActiveCall) {
+      items.push({
+        label: 'Raccrocher',
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('tray-hangup');
+          }
+        }
+      });
+      items.push({ type: 'separator' });
+    }
+
+    const favorites = Array.isArray(trayLeftMenuCache.favorites) ? trayLeftMenuCache.favorites : [];
+    if (favorites.length > 0) {
+      favorites.forEach((fav) => {
+        const name = (fav && fav.name) ? String(fav.name).trim() : '';
+        const number = (fav && fav.number) ? String(fav.number).trim() : '';
+        if (!number) return;
+        const label = name ? `${name} (${number})` : number;
+        items.push({
+          label,
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('tray-dial', number);
+            }
+          }
+        });
+      });
+    } else {
+      items.push({ label: 'Aucun favori', enabled: false });
+    }
+
+    return Menu.buildFromTemplate(items);
+  }
+
+  updateNativeTrayMenu = () => {
+    if (!tray || tray.isDestroyed()) return;
+    tray.setContextMenu(buildNativeTrayMenu());
+  };
+
+  if (useNativeTrayMenu) {
+    updateNativeTrayMenu();
   }
 
   function ensureTrayMenuWindow() {
@@ -1003,6 +1083,7 @@ app.whenReady().then(async () => {
   tray.setToolTip(config.appName);
   // Ne pas utiliser setContextMenu ici: sous Linux, cela force le menu au clic gauche.
   tray.on('mouse-up', async (event) => {
+    if (useNativeTrayMenu) return;
     console.log('🧭 tray mouse-up', event && event.button);
     if (event && event.button === 2) {
       const rightItems = buildRightClickMenuData();
