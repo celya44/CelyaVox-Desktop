@@ -834,8 +834,10 @@ app.whenReady().then(async () => {
       favorites.forEach((fav) => {
         const name = (fav && fav.name) ? String(fav.name).trim() : '';
         const number = (fav && fav.number) ? String(fav.number).trim() : '';
+        const status = (fav && fav.status) ? String(fav.status).trim() : '';
         if (!number) return;
-        const label = name ? `${name} (${number})` : number;
+        const statusPrefix = status ? `${status} - ` : '';
+        const label = statusPrefix + (name ? `${name} (${number})` : number);
         items.push({
           label,
           click: () => {
