@@ -45,6 +45,29 @@ let updateNativeTrayMenu = null;
 let pendingTelNumber = null;
 
 const TEL_PROTOCOL = 'tel';
+const TEL_PROMPT_STATE_FILE = path.join(app.getPath('userData'), 'tel-protocol-prompt.json');
+
+function hasShownTelProtocolPrompt() {
+  try {
+    const raw = fs.readFileSync(TEL_PROMPT_STATE_FILE, 'utf8');
+    const data = JSON.parse(raw);
+    return !!(data && data.shown);
+  } catch {
+    return false;
+  }
+}
+
+function markTelProtocolPromptShown() {
+  try {
+    fs.writeFileSync(
+      TEL_PROMPT_STATE_FILE,
+      JSON.stringify({ shown: true, ts: new Date().toISOString() }),
+      'utf8'
+    );
+  } catch (err) {
+    console.warn('⚠️ Impossible d\'enregistrer l\'etat du prompt tel:', err);
+  }
+}
 
 function normalizeTelUrl(url) {
   if (!url) return '';
@@ -114,7 +137,11 @@ function isDefaultTelProtocolClient() {
 }
 
 async function promptToRegisterTelProtocolClient() {
-  if (isDefaultTelProtocolClient()) return;
+  if (hasShownTelProtocolPrompt()) return;
+  if (isDefaultTelProtocolClient()) {
+    markTelProtocolPromptShown();
+    return;
+  }
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const result = await dialog.showMessageBox(mainWindow, {
     type: 'question',
@@ -128,6 +155,7 @@ async function promptToRegisterTelProtocolClient() {
   if (result.response === 0) {
     registerTelProtocolClient();
   }
+  markTelProtocolPromptShown();
 }
 
 // ----------------------
