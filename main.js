@@ -43,9 +43,52 @@ let lastAlreadyRunningDialogTs = 0;
 let trayLeftMenuCache = { hasActiveCall: false, favorites: [] };
 let updateNativeTrayMenu = null;
 let pendingTelNumber = null;
+let windowStateSaveTimer = null;
 
 const TEL_PROTOCOL = 'tel';
 const TEL_PROMPT_STATE_FILE = path.join(app.getPath('userData'), 'tel-protocol-prompt.json');
+const WINDOW_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
+const DEFAULT_WINDOW_BOUNDS = { width: 1280, height: 820 };
+const MIN_WINDOW_BOUNDS = { width: 900, height: 600 };
+
+function loadWindowState() {
+  try {
+    const raw = fs.readFileSync(WINDOW_STATE_FILE, 'utf8');
+    const data = JSON.parse(raw);
+    if (!data || !data.bounds) return null;
+    const bounds = data.bounds;
+    if (!Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return null;
+    return { bounds };
+  } catch {
+    return null;
+  }
+}
+
+function getSavableWindowBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  const bounds = mainWindow.isMaximized() ? mainWindow.getNormalBounds() : mainWindow.getBounds();
+  if (!Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return null;
+  return { width: bounds.width, height: bounds.height };
+}
+
+function persistWindowBounds() {
+  const bounds = getSavableWindowBounds();
+  if (!bounds) return;
+  try {
+    fs.writeFileSync(
+      WINDOW_STATE_FILE,
+      JSON.stringify({ bounds, ts: new Date().toISOString() }),
+      'utf8'
+    );
+  } catch (err) {
+    console.warn('⚠️ Impossible d\'enregistrer la taille de la fenetre:', err);
+  }
+}
+
+function scheduleWindowBoundsSave() {
+  if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+  windowStateSaveTimer = setTimeout(persistWindowBounds, 250);
+}
 
 function hasShownTelProtocolPrompt() {
   try {
@@ -240,6 +283,15 @@ app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 // Create main window
 // ----------------------
 async function createWindow() {
+  const storedWindowState = loadWindowState();
+  const storedBounds = storedWindowState ? storedWindowState.bounds : null;
+  const initialWidth = storedBounds
+    ? Math.max(MIN_WINDOW_BOUNDS.width, storedBounds.width)
+    : DEFAULT_WINDOW_BOUNDS.width;
+  const initialHeight = storedBounds
+    ? Math.max(MIN_WINDOW_BOUNDS.height, storedBounds.height)
+    : DEFAULT_WINDOW_BOUNDS.height;
+
   // Détermine une icône de fenêtre appropriée (Linux utilise celle-ci)
   const windowIconCandidates = [
     path.join(__dirname, 'assets', 'icons', '256x256.png'),
@@ -250,10 +302,10 @@ async function createWindow() {
   });
 
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 900,
-    minHeight: 600,
+    width: initialWidth,
+    height: initialHeight,
+    minWidth: MIN_WINDOW_BOUNDS.width,
+    minHeight: MIN_WINDOW_BOUNDS.height,
     show: false,
     title: config.appName,
   // Icône de la fenêtre (principalement Linux)
@@ -310,6 +362,9 @@ async function createWindow() {
 
   // Show when ready
   mainWindow.once('ready-to-show', () => mainWindow.show());
+
+  mainWindow.on('resize', scheduleWindowBoundsSave);
+  mainWindow.on('close', persistWindowBounds);
 
   // mainWindow.webContents.openDevTools(); // Désactivé - décommenter pour debug
   
@@ -862,10 +917,12 @@ app.whenReady().then(async () => {
       favorites.forEach((fav) => {
         const name = (fav && fav.name) ? String(fav.name).trim() : '';
         const number = (fav && fav.number) ? String(fav.number).trim() : '';
+        const displayNumber = (fav && fav.displayNumber) ? String(fav.displayNumber).trim() : '';
         const status = (fav && fav.status) ? String(fav.status).trim() : '';
         if (!number) return;
         const statusPrefix = status ? `${status} - ` : '';
-        const label = statusPrefix + (name ? `${name} (${number})` : number);
+        const shownNumber = displayNumber || number;
+        const label = statusPrefix + (name ? `${name} (${shownNumber})` : shownNumber);
         items.push({
           label,
           click: () => {
