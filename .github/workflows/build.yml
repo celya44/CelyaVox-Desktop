@@ -250,6 +250,31 @@ jobs:
             echo "Gatekeeper check on first app bundle"
             spctl -a -vvv -t install "${APP_BUNDLES[0]}"
           fi
+      - name: Verify macOS code signatures
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t APP_BUNDLES < <(find dist -type d -name "*.app")
+          mapfile -t DMG_FILES < <(find dist -type f -name "*.dmg")
+
+          if [ "${#APP_BUNDLES[@]}" -eq 0 ] || [ "${#DMG_FILES[@]}" -eq 0 ]; then
+            echo "Missing macOS artifacts: expected at least one .app and one .dmg in dist/." >&2
+            exit 1
+          fi
+
+          for app in "${APP_BUNDLES[@]}"; do
+            echo "Checking app signature: $app"
+            codesign --verify --verbose=4 --deep --strict "$app"
+            spctl -a -vvv -t execute "$app"
+          done
+
+          for dmg in "${DMG_FILES[@]}"; do
+            echo "Checking dmg signature: $dmg"
+            codesign --verify --verbose=4 --strict "$dmg"
+            spctl -a -vvv -t open --context context:primary-signature "$dmg"
+          done
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
