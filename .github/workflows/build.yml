@@ -87,7 +87,14 @@ jobs:
 
             # Re-export with legacy algorithms for better Keychain compatibility.
             openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nodes -out "$PEM_PATH"
-            openssl pkcs12 -export -in "$PEM_PATH" -out "$COMPAT_CERT_PATH" -passout "pass:$PASSWORD_CLEAN" -legacy
+
+            # Some openssl builds (e.g. LibreSSL) do not support -legacy.
+            if openssl pkcs12 -help 2>&1 | grep -q -- '-legacy'; then
+              openssl pkcs12 -export -in "$PEM_PATH" -out "$COMPAT_CERT_PATH" -passout "pass:$PASSWORD_CLEAN" -legacy
+            else
+              openssl pkcs12 -export -in "$PEM_PATH" -out "$COMPAT_CERT_PATH" -passout "pass:$PASSWORD_CLEAN" \
+                -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1
+            fi
 
             if [ ! -s "$COMPAT_CERT_PATH" ]; then
               echo "Compatibility conversion failed: generated .p12 is empty." >&2
