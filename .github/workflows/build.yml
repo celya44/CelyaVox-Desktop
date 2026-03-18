@@ -175,6 +175,9 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZE_MAX_ATTEMPTS: "8"
+          NOTARIZE_RETRY_BASE_MS: "15000"
+          NOTARIZE_RETRY_MAX_MS: "180000"
       - name: Build for Linux (dev)
         if: matrix.platform == 'linux'
         run: npm run dist:linux:dev
@@ -221,6 +224,9 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZE_MAX_ATTEMPTS: "8"
+          NOTARIZE_RETRY_BASE_MS: "15000"
+          NOTARIZE_RETRY_MAX_MS: "180000"
       - name: Staple and verify macOS artifacts
         if: matrix.platform == 'mac'
         shell: bash

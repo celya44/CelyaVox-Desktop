@@ -5,6 +5,11 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function parsePositiveInt(value, fallback) {
+  const n = Number.parseInt(String(value || ''), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 function isTransientNotaryError(error) {
   if (!error) {
     return false;
@@ -39,8 +44,12 @@ exports.default = async function notarizing(context) {
 
   console.log(`Notarizing ${appPath}...`);
 
-  const maxAttempts = 4;
+  const maxAttempts = parsePositiveInt(process.env.NOTARIZE_MAX_ATTEMPTS, 8);
+  const baseDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_BASE_MS, 15000);
+  const maxDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_MAX_MS, 180000);
+
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    console.log(`Notarization attempt ${attempt}/${maxAttempts}`);
     try {
       await notarize({
         appBundleId: build.appId,
@@ -56,11 +65,17 @@ exports.default = async function notarizing(context) {
       const isLastAttempt = attempt === maxAttempts;
 
       if (!transient || isLastAttempt) {
+        if (transient && isLastAttempt) {
+          console.error(
+            `Notarization failed after ${maxAttempts} attempts due to Apple transient server errors (HTTP 500). Re-run the workflow later.`
+          );
+        }
         console.error('Notarization failed:', error);
         throw error;
       }
 
-      const delayMs = Math.min(60000, 5000 * 2 ** (attempt - 1));
+      const jitterMs = Math.floor(Math.random() * 3000);
+      const delayMs = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1)) + jitterMs;
       console.warn(
         `Notarization attempt ${attempt}/${maxAttempts} failed with a transient Apple error. Retrying in ${Math.round(delayMs / 1000)}s...`
       );
