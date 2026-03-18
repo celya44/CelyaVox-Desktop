@@ -119,6 +119,15 @@ openssl pkcs12 -info -in certificate.p12 -noout
 
 Si cette commande echoue, re-exportez le certificat depuis Keychain Access en selectionnant le certificat **et** sa cle privee.
 
+Si la commande OpenSSL passe mais que GitHub Actions echoue encore avec `security import` (`MAC verification failed during PKCS12 import`), convertissez le `.p12` vers un format plus compatible Keychain :
+
+```bash
+openssl pkcs12 -in developerID_application.p12 -nodes -out cert-and-key.pem
+openssl pkcs12 -export -in cert-and-key.pem -out developerID_application_compat.p12 -legacy
+```
+
+Utilisez ensuite `developerID_application_compat.p12` pour generer `MAC_CERTIFICATE`.
+
 ### Configuration des Secrets GitHub
 
 Allez dans votre repo GitHub : **Settings > Secrets and variables > Actions**
