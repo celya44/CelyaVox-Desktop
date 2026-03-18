@@ -141,6 +141,7 @@ Ajoutez ces secrets :
 | `APPLE_ID` | your@email.com | Votre Apple ID |
 | `APPLE_ID_PASSWORD` | xxxx-xxxx-xxxx-xxxx | App-specific password |
 | `APPLE_TEAM_ID` | ABC1234DEF | Votre Team ID |
+| `MAC_CERTIFICATE_NAME` | Developer ID Application: Your Name (TEAMID) | Optionnel, pour forcer l'identite de signature |
 
 ### Activation dans GitHub Actions
 
@@ -155,6 +156,7 @@ Variables injectees dans le job macOS :
 | `APPLE_ID` | `${{ secrets.APPLE_ID }}` |
 | `APPLE_ID_PASSWORD` | `${{ secrets.APPLE_ID_PASSWORD }}` |
 | `APPLE_TEAM_ID` | `${{ secrets.APPLE_TEAM_ID }}` |
+| `CSC_NAME` | `${{ secrets.MAC_CERTIFICATE_NAME }}` (optionnel) |
 
 Si un secret manque, la notarisation est ignoree automatiquement par `scripts/notarize.js`.
 Le workflow valide aussi le format PKCS#12 avant le build macOS pour echouer avec un message explicite.

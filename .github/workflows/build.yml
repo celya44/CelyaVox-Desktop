@@ -42,6 +42,9 @@ jobs:
         env:
           MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
           MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
 
@@ -51,6 +54,10 @@ jobs:
           fi
           if [ -z "${MAC_CERTIFICATE_PASSWORD:-}" ]; then
             echo "MAC_CERTIFICATE_PASSWORD is empty. Add the .p12 password to repository secrets." >&2
+            exit 1
+          fi
+          if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_ID_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
+            echo "Missing Apple notarization secrets. Configure APPLE_ID, APPLE_ID_PASSWORD and APPLE_TEAM_ID in repository secrets." >&2
             exit 1
           fi
 
@@ -164,10 +171,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
           CSC_KEY_PASSWORD: ${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}
+          CSC_NAME: ${{ secrets.MAC_CERTIFICATE_NAME }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Build for Linux (dev)
         if: matrix.platform == 'linux'
         run: npm run dist:linux:dev
@@ -210,22 +217,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
           CSC_KEY_PASSWORD: ${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}
+          CSC_NAME: ${{ secrets.MAC_CERTIFICATE_NAME }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Staple and verify macOS artifacts
         if: matrix.platform == 'mac'
         shell: bash
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
 
-          if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_ID_PASSWORD:-}" ]; then
-            echo "Skipping stapling: Apple notarization credentials are not configured."
-            exit 0
+          if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_ID_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
+            echo "Cannot staple: Apple notarization credentials are missing (APPLE_ID / APPLE_ID_PASSWORD / APPLE_TEAM_ID)." >&2
+            exit 1
           fi
 
           APP_BUNDLES=()
