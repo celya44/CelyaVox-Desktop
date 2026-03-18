@@ -104,6 +104,21 @@ base64 -i certificate.p12 | tr -d '\n' | pbcopy
 ```
 Le certificat encodé (sur une seule ligne) est maintenant dans votre presse-papier.
 
+Sous Linux (GNU base64), utilisez :
+```bash
+base64 -w 0 certificate.p12
+```
+
+### Verification locale du certificat exporte
+
+Avant d'ajouter le secret GitHub, verifiez que le `.p12` est valide et contient bien une cle privee :
+
+```bash
+openssl pkcs12 -info -in certificate.p12 -noout
+```
+
+Si cette commande echoue, re-exportez le certificat depuis Keychain Access en selectionnant le certificat **et** sa cle privee.
+
 ### Configuration des Secrets GitHub
 
 Allez dans votre repo GitHub : **Settings > Secrets and variables > Actions**
@@ -133,6 +148,7 @@ Variables injectees dans le job macOS :
 | `APPLE_TEAM_ID` | `${{ secrets.APPLE_TEAM_ID }}` |
 
 Si un secret manque, la notarisation est ignoree automatiquement par `scripts/notarize.js`.
+Le workflow valide aussi le format PKCS#12 avant le build macOS pour echouer avec un message explicite.
 
 ## 🧪 Test de la signature
 

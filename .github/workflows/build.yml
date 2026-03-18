@@ -36,6 +36,43 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Prepare macOS signing certificate
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MAC_CERTIFICATE:-}" ]; then
+            echo "MAC_CERTIFICATE is empty. Add the base64-encoded .p12 to repository secrets." >&2
+            exit 1
+          fi
+          if [ -z "${MAC_CERTIFICATE_PASSWORD:-}" ]; then
+            echo "MAC_CERTIFICATE_PASSWORD is empty. Add the .p12 password to repository secrets." >&2
+            exit 1
+          fi
+
+          CERT_PATH="$RUNNER_TEMP/mac-signing-cert.p12"
+
+          # Decode with GNU coreutils first, then BSD base64 for macOS compatibility.
+          if ! printf '%s' "$MAC_CERTIFICATE" | base64 --decode > "$CERT_PATH" 2>/dev/null; then
+            printf '%s' "$MAC_CERTIFICATE" | base64 -D > "$CERT_PATH"
+          fi
+
+          if [ ! -s "$CERT_PATH" ]; then
+            echo "Decoded certificate file is empty. Check MAC_CERTIFICATE content." >&2
+            exit 1
+          fi
+
+          # Validate that file is a valid PKCS#12 and password matches.
+          if ! openssl pkcs12 -in "$CERT_PATH" -nokeys -passin "pass:$MAC_CERTIFICATE_PASSWORD" >/dev/null 2>&1; then
+            echo "Invalid PKCS#12 certificate or wrong password. Re-export the certificate with private key (.p12) and update secrets." >&2
+            exit 1
+          fi
+
+          echo "MAC_CERTIFICATE_PATH=$CERT_PATH" >> "$GITHUB_ENV"
       - name: Generate Windows self-signed cert
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -83,7 +120,7 @@ jobs:
         run: npm run dist:mac:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -129,7 +166,7 @@ jobs:
         run: npm run dist:mac:dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
