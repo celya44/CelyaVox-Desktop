@@ -55,6 +55,7 @@ jobs:
           fi
 
           CERT_PATH="$RUNNER_TEMP/mac-signing-cert.p12"
+          PASSWORD_CLEAN="$(printf '%s' "$MAC_CERTIFICATE_PASSWORD" | tr -d '\r')"
 
           # Decode with GNU coreutils first, then BSD base64 for macOS compatibility.
           if ! printf '%s' "$MAC_CERTIFICATE" | base64 --decode > "$CERT_PATH" 2>/dev/null; then
@@ -67,12 +68,25 @@ jobs:
           fi
 
           # Validate that file is a valid PKCS#12 and password matches.
-          if ! openssl pkcs12 -in "$CERT_PATH" -nokeys -passin "pass:$MAC_CERTIFICATE_PASSWORD" >/dev/null 2>&1; then
+          if ! openssl pkcs12 -in "$CERT_PATH" -nokeys -passin "pass:$PASSWORD_CLEAN" >/dev/null 2>&1; then
             echo "Invalid PKCS#12 certificate or wrong password. Re-export the certificate with private key (.p12) and update secrets." >&2
             exit 1
           fi
 
+          # Run the same import mechanism used by electron-builder to fail early with a clear error.
+          TMP_KEYCHAIN="$RUNNER_TEMP/mac-signing-check.keychain-db"
+          TMP_KEYCHAIN_PASSWORD="temp-pass-$(date +%s)"
+          security create-keychain -p "$TMP_KEYCHAIN_PASSWORD" "$TMP_KEYCHAIN"
+          security unlock-keychain -p "$TMP_KEYCHAIN_PASSWORD" "$TMP_KEYCHAIN"
+          if ! security import "$CERT_PATH" -k "$TMP_KEYCHAIN" -P "$PASSWORD_CLEAN" -T /usr/bin/codesign -T /usr/bin/productbuild >/dev/null 2>&1; then
+            echo "macOS security import failed. Most likely MAC_CERTIFICATE_PASSWORD is incorrect for this .p12, or the .p12 was exported without private key." >&2
+            security delete-keychain "$TMP_KEYCHAIN" || true
+            exit 1
+          fi
+          security delete-keychain "$TMP_KEYCHAIN"
+
           echo "MAC_CERTIFICATE_PATH=$CERT_PATH" >> "$GITHUB_ENV"
+          echo "MAC_CERTIFICATE_PASSWORD_CLEAN=$PASSWORD_CLEAN" >> "$GITHUB_ENV"
       - name: Generate Windows self-signed cert
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -121,7 +135,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          CSC_KEY_PASSWORD: ${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -167,7 +181,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          CSC_KEY_PASSWORD: ${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
