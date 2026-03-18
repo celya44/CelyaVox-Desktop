@@ -154,9 +154,12 @@ Variables injectees dans le job macOS :
 | `CSC_LINK` | `${{ secrets.MAC_CERTIFICATE }}` |
 | `CSC_KEY_PASSWORD` | `${{ secrets.MAC_CERTIFICATE_PASSWORD }}` |
 | `APPLE_ID` | `${{ secrets.APPLE_ID }}` |
+| `APPLE_APP_SPECIFIC_PASSWORD` | `${{ secrets.APPLE_ID_PASSWORD }}` |
 | `APPLE_ID_PASSWORD` | `${{ secrets.APPLE_ID_PASSWORD }}` |
 | `APPLE_TEAM_ID` | `${{ secrets.APPLE_TEAM_ID }}` |
 | `CSC_NAME` | `${{ secrets.MAC_CERTIFICATE_NAME }}` (optionnel) |
+
+Note: `electron-builder` attend la variable `APPLE_APP_SPECIFIC_PASSWORD`. Le workflow la mappe automatiquement depuis le secret `APPLE_ID_PASSWORD`.
 
 Si un secret manque, la notarisation est ignoree automatiquement par `scripts/notarize.js`.
 Le workflow valide aussi le format PKCS#12 avant le build macOS pour echouer avec un message explicite.
