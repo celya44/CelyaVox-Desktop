@@ -185,6 +185,7 @@
     "directories": {
       "buildResources": "assets"
     },
+    "afterSign": "scripts/notarize.js",
     "portable": {
       "artifactName": "${productName}-${version}.${ext}"
     },

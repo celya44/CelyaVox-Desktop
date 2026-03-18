@@ -100,9 +100,9 @@ npm run dist:mac:prod
 
 ### Conversion du certificat en Base64
 ```bash
-base64 -i certificate.p12 | pbcopy
+base64 -i certificate.p12 | tr -d '\n' | pbcopy
 ```
-Le certificat encodé est maintenant dans votre presse-papier.
+Le certificat encodé (sur une seule ligne) est maintenant dans votre presse-papier.
 
 ### Configuration des Secrets GitHub
 
@@ -118,22 +118,21 @@ Ajoutez ces secrets :
 | `APPLE_ID_PASSWORD` | xxxx-xxxx-xxxx-xxxx | App-specific password |
 | `APPLE_TEAM_ID` | ABC1234DEF | Votre Team ID |
 
-### Activation de la signature dans GitHub Actions
+### Activation dans GitHub Actions
 
-Le fichier `.github/workflows/build.yml` est déjà configuré. Décommentez ces lignes :
+Le fichier `.github/workflows/build.yml` est deja configure pour utiliser automatiquement ces secrets sur les jobs macOS (`dist:mac:prod` et `dist:mac:dev`).
 
-```yaml
-- name: Build for macOS
-  if: matrix.platform == 'mac'
-  run: npm run dist:mac:prod
-  env:
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
-    CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-    APPLE_ID: ${{ secrets.APPLE_ID }}
-    APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-    APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-```
+Variables injectees dans le job macOS :
+
+| Variable CI | Source |
+|-------------|--------|
+| `CSC_LINK` | `${{ secrets.MAC_CERTIFICATE }}` |
+| `CSC_KEY_PASSWORD` | `${{ secrets.MAC_CERTIFICATE_PASSWORD }}` |
+| `APPLE_ID` | `${{ secrets.APPLE_ID }}` |
+| `APPLE_ID_PASSWORD` | `${{ secrets.APPLE_ID_PASSWORD }}` |
+| `APPLE_TEAM_ID` | `${{ secrets.APPLE_TEAM_ID }}` |
+
+Si un secret manque, la notarisation est ignoree automatiquement par `scripts/notarize.js`.
 
 ## 🧪 Test de la signature
 
