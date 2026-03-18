@@ -172,10 +172,9 @@ jobs:
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
           CSC_KEY_PASSWORD: ${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}
           CSC_NAME: ${{ secrets.MAC_CERTIFICATE_NAME }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - name: Build for Linux (dev)
         if: matrix.platform == 'linux'
         run: npm run dist:linux:dev
@@ -219,10 +218,9 @@ jobs:
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
           CSC_KEY_PASSWORD: ${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}
           CSC_NAME: ${{ secrets.MAC_CERTIFICATE_NAME }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - name: Staple and verify macOS artifacts
         if: matrix.platform == 'mac'
         shell: bash
