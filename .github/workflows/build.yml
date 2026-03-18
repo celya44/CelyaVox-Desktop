@@ -214,6 +214,42 @@ jobs:
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Staple and verify macOS artifacts
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_ID_PASSWORD:-}" ]; then
+            echo "Skipping stapling: Apple notarization credentials are not configured."
+            exit 0
+          fi
+
+          mapfile -t APP_BUNDLES < <(find dist -type d -name "*.app")
+          mapfile -t DMG_FILES < <(find dist -type f -name "*.dmg")
+
+          if [ "${#APP_BUNDLES[@]}" -eq 0 ] && [ "${#DMG_FILES[@]}" -eq 0 ]; then
+            echo "No macOS artifacts found to staple."
+            exit 1
+          fi
+
+          for app in "${APP_BUNDLES[@]}"; do
+            echo "Stapling app: $app"
+            xcrun stapler staple -v "$app"
+          done
+
+          for dmg in "${DMG_FILES[@]}"; do
+            echo "Stapling dmg: $dmg"
+            xcrun stapler staple -v "$dmg"
+          done
+
+          if [ "${#APP_BUNDLES[@]}" -gt 0 ]; then
+            echo "Gatekeeper check on first app bundle"
+            spctl -a -vvv -t install "${APP_BUNDLES[0]}"
+          fi
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
