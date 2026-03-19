@@ -122,6 +122,42 @@ jobs:
 
           echo "MAC_CERTIFICATE_PATH=$CERT_PATH" >> "$GITHUB_ENV"
           echo "MAC_CERTIFICATE_PASSWORD_CLEAN=$PASSWORD_CLEAN" >> "$GITHUB_ENV"
+      - name: Diagnose Apple credentials configuration
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="${{ env.MAC_CERTIFICATE_PATH }}"
+          PASSWORD_CLEAN="${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}"
+
+          echo "=== Apple credentials diagnostic ==="
+
+          # Extract Team ID (OU field) and CN from the certificate
+          CERT_INFO="$(openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nokeys 2>/dev/null \
+            | openssl x509 -noout -subject 2>/dev/null || echo '')"
+
+          CERT_OU="$(echo "$CERT_INFO" | grep -oE 'OU\s*=\s*[A-Z0-9]+' | head -1 | sed 's/OU\s*=\s*//' | tr -d ' ')"
+          CERT_CN="$(echo "$CERT_INFO" | grep -oE 'CN\s*=\s*[^,/]+' | head -1 | sed 's/CN\s*=\s*//')"
+
+          echo "Certificate CN (signing identity) : ${CERT_CN:-not found}"
+          echo "Certificate OU (Team ID from cert): ${CERT_OU:-not found}"
+          echo "APPLE_TEAM_ID secret              : $APPLE_TEAM_ID"
+
+          if [ -n "$CERT_OU" ] && [ -n "$APPLE_TEAM_ID" ] && [ "$CERT_OU" != "$APPLE_TEAM_ID" ]; then
+            echo ""
+            echo "::error::Team ID MISMATCH: certificate has '$CERT_OU' but APPLE_TEAM_ID secret is '$APPLE_TEAM_ID'."
+            echo "Update the APPLE_TEAM_ID secret to: $CERT_OU"
+            exit 1
+          fi
+
+          if [ -z "$CERT_OU" ]; then
+            echo "::warning::Could not extract Team ID from certificate. Verify APPLE_TEAM_ID manually."
+          else
+            echo "Team ID matches certificate. ✅"
+          fi
       - name: Generate Windows self-signed cert
         if: matrix.platform == 'windows'
         shell: pwsh

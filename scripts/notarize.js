@@ -108,11 +108,19 @@ exports.default = async function notarizing(context) {
   const appName = context.packager.appInfo.productFilename;
   const appPath = `${appOutDir}/${appName}.app`;
 
-  // Masked diagnostic: help identify credential mismatches without leaking secrets
-  const maskedId = appleId.length > 3 ? `${appleId.slice(0, 3)}***` : '***';
+  // Masked diagnostic: show enough to verify the right account without leaking credentials.
+  // Shows: first 3 chars + *** + @domain  e.g. jpr***@gmail.com
+  const atIdx = appleId.indexOf('@');
+  const maskedId = atIdx > 0
+    ? `${appleId.slice(0, Math.min(3, atIdx))}***${appleId.slice(atIdx)}`
+    : (appleId.length > 3 ? `${appleId.slice(0, 3)}***` : '***');
+  // Team ID: show last 4 chars so user can cross-check with Apple Developer portal
+  const maskedTeam = appleTeamId.length > 4
+    ? `***${appleTeamId.slice(-4)}`
+    : '***';
   console.log(`Notarizing ${appPath}`);
   console.log(`  Apple ID : ${maskedId}`);
-  console.log(`  Team ID  : ${appleTeamId}`);
+  console.log(`  Team ID  : ${maskedTeam}`);
   console.log(`  Bundle ID: ${build.appId}`);
 
   // --- Preflight credential check ---
