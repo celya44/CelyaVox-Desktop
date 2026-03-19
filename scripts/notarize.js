@@ -56,12 +56,8 @@ function isTransientNotaryError(error) {
 }
 
 /**
- * Vérifie les credentials Apple AVANT de tenter la notarisation.
- * Utilise `xcrun notarytool history` qui échoue immédiatement si les
- * credentials sont invalides (contrairement à `submit --wait` qui prend
- * plusieurs minutes avant de retourner une erreur 500).
- * Le mot de passe est passé via @env: pour éviter son exposition dans la
- * liste des processus.
+ * Preflight avec Apple ID + app-specific password.
+ * Le mot de passe est passé via @env: pour éviter son exposition.
  */
 function verifyNotaryCredentials(appleId, appleIdPassword, appleTeamId) {
   const env = { ...process.env, _NOTARIZE_CHK_PWD: appleIdPassword };
@@ -76,30 +72,53 @@ function verifyNotaryCredentials(appleId, appleIdPassword, appleTeamId) {
     ],
     { encoding: 'utf8', timeout: 30000, env }
   );
+  if (result.status === 0) return { ok: true };
+  return { ok: false, detail: (result.stderr || result.stdout || '').trim() };
+}
 
-  if (result.status === 0) {
-    return { ok: true };
-  }
-
-  const detail = (result.stderr || result.stdout || '').trim();
-  return { ok: false, detail };
+/**
+ * Preflight avec App Store Connect API Key.
+ */
+function verifyNotaryCredentialsApiKey(keyPath, keyId, issuer) {
+  const result = spawnSync(
+    'xcrun',
+    [
+      'notarytool', 'history',
+      '--key', keyPath,
+      '--key-id', keyId,
+      '--issuer', issuer,
+      '--output-format', 'json',
+    ],
+    { encoding: 'utf8', timeout: 30000 }
+  );
+  if (result.status === 0) return { ok: true };
+  return { ok: false, detail: (result.stderr || result.stdout || '').trim() };
 }
 
 exports.default = async function notarizing(context) {
   const { electronPlatformName, appOutDir } = context;
+
+  if (electronPlatformName !== 'darwin') {
+    return;
+  }
+
+  // --- Méthode 1: App Store Connect API Key (prioritaire, ne dépend pas de 2FA) ---
+  const apiKeyContent = normalizeSecret(process.env.APPLE_API_KEY_CONTENT);
+  const apiKeyId     = normalizeSecret(process.env.APPLE_API_KEY_ID);
+  const apiIssuer    = normalizeSecret(process.env.APPLE_API_ISSUER);
+  const useApiKey    = !!(apiKeyContent && apiKeyId && apiIssuer);
+
+  // --- Méthode 2: Apple ID + app-specific password (fallback) ---
   const appleId = normalizeSecret(process.env.NOTARIZE_APPLE_ID || process.env.APPLE_ID);
   const appleIdPassword = normalizeSecret(
     process.env.NOTARIZE_APPLE_ID_PASSWORD || process.env.APPLE_ID_PASSWORD || process.env.APPLE_APP_SPECIFIC_PASSWORD
   );
   const appleTeamId = normalizeSecret(process.env.NOTARIZE_APPLE_TEAM_ID || process.env.APPLE_TEAM_ID);
-  
-  if (electronPlatformName !== 'darwin') {
-    return;
-  }
 
-  // Skip notarization if credentials are not provided
-  if (!appleId || !appleIdPassword || !appleTeamId) {
-    console.log('Skipping notarization: Apple credentials are not set');
+  if (!useApiKey && (!appleId || !appleIdPassword || !appleTeamId)) {
+    console.log('Skipping notarization: no credentials configured.');
+    console.log('  Set APPLE_API_KEY_CONTENT + APPLE_API_KEY_ID + APPLE_API_ISSUER (recommended)');
+    console.log('  or APPLE_ID + APPLE_ID_PASSWORD + APPLE_TEAM_ID');
     setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
     setGithubEnv('NOTARIZATION_STATUS', 'skipped');
     return;
@@ -108,57 +127,86 @@ exports.default = async function notarizing(context) {
   const appName = context.packager.appInfo.productFilename;
   const appPath = `${appOutDir}/${appName}.app`;
 
-  // Masked diagnostic: show enough to verify the right account without leaking credentials.
-  // Shows: first 3 chars + *** + @domain  e.g. jpr***@gmail.com
-  const atIdx = appleId.indexOf('@');
-  const maskedId = atIdx > 0
-    ? `${appleId.slice(0, Math.min(3, atIdx))}***${appleId.slice(atIdx)}`
-    : (appleId.length > 3 ? `${appleId.slice(0, 3)}***` : '***');
-  // Team ID: show last 4 chars so user can cross-check with Apple Developer portal
-  const maskedTeam = appleTeamId.length > 4
-    ? `***${appleTeamId.slice(-4)}`
-    : '***';
-  console.log(`Notarizing ${appPath}`);
-  console.log(`  Apple ID : ${maskedId}`);
-  console.log(`  Team ID  : ${maskedTeam}`);
-  console.log(`  Bundle ID: ${build.appId}`);
+  const fs   = require('node:fs');
+  const os   = require('node:os');
+  const path = require('node:path');
 
-  // --- Preflight credential check ---
-  // xcrun notarytool history répond en < 5s avec une erreur claire si les
-  // credentials sont invalides, évitant 13+ minutes d'attente pour rien.
-  console.log('Checking notarization credentials via notarytool history...');
-  const credCheck = verifyNotaryCredentials(appleId, appleIdPassword, appleTeamId);
-  if (!credCheck.ok) {
-    const msg =
-      'Notarization credential check FAILED. The build cannot be notarized.\n' +
-      'Likely causes:\n' +
-      '  1. App-specific password expired/revoked → regenerate at https://appleid.apple.com\n' +
-      '  2. Apple Developer Agreement updated → accept at https://developer.apple.com\n' +
-      '  3. Wrong Team ID in NOTARIZE_APPLE_TEAM_ID secret\n' +
-      '  4. Account subscription expired\n' +
-      (credCheck.detail ? `\nnotarytool output:\n${credCheck.detail}` : '');
-    console.error(msg);
-    setGithubEnv('NOTARIZATION_STATUS', 'credential-error');
-    setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
-    // Credential errors are never soft-failed, regardless of NOTARIZE_ALLOW_TRANSIENT_FAILURE
-    throw new Error('Notarization credential check failed — fix credentials and retry.');
+  let notarizeOptions;
+  let tempKeyPath = null;
+
+  if (useApiKey) {
+    console.log(`Notarizing ${appPath}`);
+    console.log(`  Auth     : App Store Connect API Key`);
+    console.log(`  Key ID   : ${apiKeyId}`);
+    console.log(`  Issuer   : ${apiIssuer.slice(0, 8)}...`);
+    console.log(`  Bundle ID: ${build.appId}`);
+
+    // Écrire le contenu .p8 dans un fichier temporaire sécurisé
+    tempKeyPath = path.join(os.tmpdir(), `AuthKey_${apiKeyId}.p8`);
+    fs.writeFileSync(tempKeyPath, apiKeyContent, { mode: 0o600 });
+
+    console.log('Checking API key credentials via notarytool history...');
+    const credCheck = verifyNotaryCredentialsApiKey(tempKeyPath, apiKeyId, apiIssuer);
+    if (!credCheck.ok) {
+      fs.unlinkSync(tempKeyPath);
+      tempKeyPath = null;
+      console.error(
+        'API Key credential check FAILED.\n' +
+        'Verify secrets: APPLE_API_KEY_CONTENT, APPLE_API_KEY_ID, APPLE_API_ISSUER.\n' +
+        (credCheck.detail ? `\nnotarytool output:\n${credCheck.detail}` : '')
+      );
+      setGithubEnv('NOTARIZATION_STATUS', 'credential-error');
+      setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
+      throw new Error('Notarization API key credential check failed — fix credentials and retry.');
+    }
+    console.log('API Key credentials check passed.');
+
+    notarizeOptions = { appPath, appleApiKey: tempKeyPath, appleApiKeyId: apiKeyId, appleApiIssuer: apiIssuer };
+
+  } else {
+    const atIdx = appleId.indexOf('@');
+    const maskedId = atIdx > 0
+      ? `${appleId.slice(0, Math.min(3, atIdx))}***${appleId.slice(atIdx)}`
+      : (appleId.length > 3 ? `${appleId.slice(0, 3)}***` : '***');
+    const maskedTeam = appleTeamId.length > 4 ? `***${appleTeamId.slice(-4)}` : '***';
+
+    console.log(`Notarizing ${appPath}`);
+    console.log(`  Auth     : Apple ID + app-specific password`);
+    console.log(`  Apple ID : ${maskedId}`);
+    console.log(`  Team ID  : ${maskedTeam}`);
+    console.log(`  Bundle ID: ${build.appId}`);
+
+    console.log('Checking credentials via notarytool history...');
+    const credCheck = verifyNotaryCredentials(appleId, appleIdPassword, appleTeamId);
+    if (!credCheck.ok) {
+      console.error(
+        'Notarization credential check FAILED. The build cannot be notarized.\n' +
+        'Likely causes:\n' +
+        '  1. App-specific password expired/revoked → regenerate at https://appleid.apple.com\n' +
+        '  2. Apple Developer Agreement updated → accept at https://developer.apple.com\n' +
+        '  3. Wrong Team ID in NOTARIZE_APPLE_TEAM_ID secret\n' +
+        '  4. Account subscription expired\n' +
+        (credCheck.detail ? `\nnotarytool output:\n${credCheck.detail}` : '')
+      );
+      setGithubEnv('NOTARIZATION_STATUS', 'credential-error');
+      setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
+      throw new Error('Notarization credential check failed — fix credentials and retry.');
+    }
+    console.log('Credentials check passed.');
+
+    notarizeOptions = { appPath, appleId, appleIdPassword, teamId: appleTeamId };
   }
-  console.log('Credentials check passed.');
 
-  const maxAttempts = parsePositiveInt(process.env.NOTARIZE_MAX_ATTEMPTS, 1);
-  const baseDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_BASE_MS, 15000);
-  const maxDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_MAX_MS, 180000);
+  const maxAttempts         = parsePositiveInt(process.env.NOTARIZE_MAX_ATTEMPTS, 1);
+  const baseDelayMs         = parsePositiveInt(process.env.NOTARIZE_RETRY_BASE_MS, 15000);
+  const maxDelayMs          = parsePositiveInt(process.env.NOTARIZE_RETRY_MAX_MS, 180000);
   const allowTransientFailure = parseBoolean(process.env.NOTARIZE_ALLOW_TRANSIENT_FAILURE, false);
 
+  try {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     console.log(`Notarization attempt ${attempt}/${maxAttempts}`);
     try {
-      await notarize({
-        appPath: appPath,
-        appleId,
-        appleIdPassword,
-        teamId: appleTeamId,
-      });
+      await notarize(notarizeOptions);
       console.log('Notarization completed successfully');
       setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
       setGithubEnv('NOTARIZATION_STATUS', 'ok');
@@ -202,6 +250,12 @@ exports.default = async function notarizing(context) {
         `Notarization attempt ${attempt}/${maxAttempts} failed with a transient Apple error. Retrying in ${Math.round(delayMs / 1000)}s...`
       );
       await sleep(delayMs);
+    }
+  }
+  } finally {
+    // Supprimer le fichier .p8 temporaire après usage
+    if (tempKeyPath) {
+      try { require('node:fs').unlinkSync(tempKeyPath); } catch (_) {}
     }
   }
 };
