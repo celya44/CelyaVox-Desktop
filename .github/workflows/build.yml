@@ -166,7 +166,10 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Build for macOS
         if: matrix.platform == 'mac'
-        run: npm run dist:mac:prod
+        run: |
+          echo "NOTARIZATION_TRANSIENT_FAILURE=0" >> "$GITHUB_ENV"
+          echo "NOTARIZATION_STATUS=starting" >> "$GITHUB_ENV"
+          npm run dist:mac:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
@@ -216,7 +219,10 @@ jobs:
           Get-ChildItem -Path dist -Filter *.msi | ForEach-Object { & $signtool verify /pa /v $_.FullName }
       - name: Build for macOS (dev)
         if: matrix.platform == 'mac'
-        run: npm run dist:mac:dev
+        run: |
+          echo "NOTARIZATION_TRANSIENT_FAILURE=0" >> "$GITHUB_ENV"
+          echo "NOTARIZATION_STATUS=starting" >> "$GITHUB_ENV"
+          npm run dist:mac:dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
