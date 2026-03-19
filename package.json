@@ -186,6 +186,7 @@
       "buildResources": "assets"
     },
     "afterSign": "scripts/notarize.js",
+    "afterAllArtifactBuild": "scripts/notarize-dmg.js",
     "portable": {
       "artifactName": "${productName}-${version}.${ext}"
     },
