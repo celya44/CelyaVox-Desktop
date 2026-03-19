@@ -139,8 +139,19 @@ jobs:
           CERT_INFO="$(openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nokeys 2>/dev/null \
             | openssl x509 -noout -subject 2>/dev/null || echo '')"
 
-          CERT_OU="$(echo "$CERT_INFO" | grep -oE 'OU\s*=\s*[A-Z0-9]+' | head -1 | sed 's/OU\s*=\s*//' | tr -d ' ')"
-          CERT_CN="$(echo "$CERT_INFO" | grep -oE 'CN\s*=\s*[^,/]+' | head -1 | sed 's/CN\s*=\s*//')"
+          # openssl outputs either:
+          #   subject= /OU=TEAMID/CN=...   (legacy format)
+          #   subject=OU = TEAMID, CN = ... (new format)
+          # Extract the raw OU value and strip any prefix/spaces.
+          CERT_OU="$(echo "$CERT_INFO" \
+            | tr ',' '\n' \
+            | grep -E '^\s*(OU|subject.*OU)\s*=' \
+            | head -1 \
+            | sed 's/.*OU[[:space:]]*=[[:space:]]*//' \
+            | sed 's/[[:space:]].*//' \
+            | sed 's|/.*||' \
+            | tr -d ' \r\n')"
+          CERT_CN="$(echo "$CERT_INFO" | grep -oE 'CN[[:space:]]*=[[:space:]]*[^,/]+' | head -1 | sed 's/CN[[:space:]]*=[[:space:]]*//')"
 
           echo "Certificate CN (signing identity) : ${CERT_CN:-not found}"
           echo "Certificate OU (Team ID from cert): ${CERT_OU:-not found}"
