@@ -225,9 +225,9 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          NOTARIZE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          NOTARIZE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARIZE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           NOTARIZE_MAX_ATTEMPTS: "1"
       - name: Build for Linux (dev)
         if: matrix.platform == 'linux'
@@ -278,9 +278,9 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          NOTARIZE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          NOTARIZE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARIZE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           NOTARIZE_MAX_ATTEMPTS: "1"
       - name: Staple, verify and summarize macOS artifacts
         if: matrix.platform == 'mac'

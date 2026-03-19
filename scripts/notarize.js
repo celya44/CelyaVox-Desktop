@@ -103,9 +103,11 @@ exports.default = async function notarizing(context) {
   }
 
   // --- Méthode 1: App Store Connect API Key (prioritaire, ne dépend pas de 2FA) ---
-  const apiKeyContent = normalizeSecret(process.env.APPLE_API_KEY_CONTENT);
-  const apiKeyId     = normalizeSecret(process.env.APPLE_API_KEY_ID);
-  const apiIssuer    = normalizeSecret(process.env.APPLE_API_ISSUER);
+  // Variables préfixées NOTARIZE_ pour ne pas interférer avec electron-builder
+  // (qui intercepte APPLE_API_KEY_ID et requiert APPLE_API_KEY = chemin .p8)
+  const apiKeyContent = normalizeSecret(process.env.NOTARIZE_API_KEY_CONTENT);
+  const apiKeyId     = normalizeSecret(process.env.NOTARIZE_API_KEY_ID);
+  const apiIssuer    = normalizeSecret(process.env.NOTARIZE_API_ISSUER);
   const useApiKey    = !!(apiKeyContent && apiKeyId && apiIssuer);
 
   // --- Méthode 2: Apple ID + app-specific password (fallback) ---
