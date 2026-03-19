@@ -178,6 +178,7 @@ jobs:
           NOTARIZE_MAX_ATTEMPTS: "8"
           NOTARIZE_RETRY_BASE_MS: "15000"
           NOTARIZE_RETRY_MAX_MS: "180000"
+          NOTARIZE_ALLOW_TRANSIENT_FAILURE: "true"
       - name: Build for Linux (dev)
         if: matrix.platform == 'linux'
         run: npm run dist:linux:dev
@@ -227,8 +228,9 @@ jobs:
           NOTARIZE_MAX_ATTEMPTS: "8"
           NOTARIZE_RETRY_BASE_MS: "15000"
           NOTARIZE_RETRY_MAX_MS: "180000"
+          NOTARIZE_ALLOW_TRANSIENT_FAILURE: "true"
       - name: Staple and verify macOS artifacts
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && env.NOTARIZATION_TRANSIENT_FAILURE != '1'
         shell: bash
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -273,7 +275,7 @@ jobs:
             spctl -a -vvv -t install "${APP_BUNDLES[0]}"
           fi
       - name: Verify macOS code signatures
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && env.NOTARIZATION_TRANSIENT_FAILURE != '1'
         shell: bash
         run: |
           set -euo pipefail
@@ -305,6 +307,12 @@ jobs:
             codesign --verify --verbose=4 --strict "$dmg"
             spctl -a -vvv -t open --context context:primary-signature "$dmg"
           done
+      - name: Report notarization transient status
+        if: matrix.platform == 'mac' && env.NOTARIZATION_TRANSIENT_FAILURE == '1'
+        shell: bash
+        run: |
+          echo "Notarization was skipped after repeated transient Apple server errors (HTTP 500)."
+          echo "Artifacts are signed but may not be notarized/stapled for this run."
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4

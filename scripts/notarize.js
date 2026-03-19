@@ -10,6 +10,31 @@ function parsePositiveInt(value, fallback) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+function parseBoolean(value, fallback = false) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+}
+
+function setGithubEnv(key, value) {
+  const githubEnvPath = process.env.GITHUB_ENV;
+  if (!githubEnvPath) {
+    return;
+  }
+
+  const fs = require('node:fs');
+  fs.appendFileSync(githubEnvPath, `${key}=${value}\n`);
+}
+
 function isTransientNotaryError(error) {
   if (!error) {
     return false;
@@ -47,6 +72,7 @@ exports.default = async function notarizing(context) {
   const maxAttempts = parsePositiveInt(process.env.NOTARIZE_MAX_ATTEMPTS, 8);
   const baseDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_BASE_MS, 15000);
   const maxDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_MAX_MS, 180000);
+  const allowTransientFailure = parseBoolean(process.env.NOTARIZE_ALLOW_TRANSIENT_FAILURE, false);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     console.log(`Notarization attempt ${attempt}/${maxAttempts}`);
@@ -69,6 +95,13 @@ exports.default = async function notarizing(context) {
           console.error(
             `Notarization failed after ${maxAttempts} attempts due to Apple transient server errors (HTTP 500). Re-run the workflow later.`
           );
+
+          if (allowTransientFailure) {
+            console.warn('Continuing build because NOTARIZE_ALLOW_TRANSIENT_FAILURE is enabled.');
+            setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '1');
+            setGithubEnv('NOTARIZATION_STATUS', 'transient-failure');
+            return;
+          }
         }
         console.error('Notarization failed:', error);
         throw error;
