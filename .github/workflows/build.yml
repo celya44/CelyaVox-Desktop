@@ -178,9 +178,7 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NOTARIZE_MAX_ATTEMPTS: "8"
-          NOTARIZE_RETRY_BASE_MS: "15000"
-          NOTARIZE_RETRY_MAX_MS: "180000"
+          NOTARIZE_MAX_ATTEMPTS: "1"
           NOTARIZE_ALLOW_TRANSIENT_FAILURE: "true"
       - name: Build for Linux (dev)
         if: matrix.platform == 'linux'
@@ -231,9 +229,7 @@ jobs:
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NOTARIZE_MAX_ATTEMPTS: "8"
-          NOTARIZE_RETRY_BASE_MS: "15000"
-          NOTARIZE_RETRY_MAX_MS: "180000"
+          NOTARIZE_MAX_ATTEMPTS: "1"
           NOTARIZE_ALLOW_TRANSIENT_FAILURE: "true"
       - name: Staple and verify macOS artifacts
         if: matrix.platform == 'mac' && env.NOTARIZATION_TRANSIENT_FAILURE != '1'

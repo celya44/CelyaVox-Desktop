@@ -77,9 +77,14 @@ exports.default = async function notarizing(context) {
   const appName = context.packager.appInfo.productFilename;
   const appPath = `${appOutDir}/${appName}.app`;
 
-  console.log(`Notarizing ${appPath}...`);
+  // Masked diagnostic: help identify credential mismatches without leaking secrets
+  const maskedId = appleId.length > 3 ? `${appleId.slice(0, 3)}***` : '***';
+  console.log(`Notarizing ${appPath}`);
+  console.log(`  Apple ID : ${maskedId}`);
+  console.log(`  Team ID  : ${appleTeamId}`);
+  console.log(`  Bundle ID: ${build.appId}`);
 
-  const maxAttempts = parsePositiveInt(process.env.NOTARIZE_MAX_ATTEMPTS, 8);
+  const maxAttempts = parsePositiveInt(process.env.NOTARIZE_MAX_ATTEMPTS, 1);
   const baseDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_BASE_MS, 15000);
   const maxDelayMs = parsePositiveInt(process.env.NOTARIZE_RETRY_MAX_MS, 180000);
   const allowTransientFailure = parseBoolean(process.env.NOTARIZE_ALLOW_TRANSIENT_FAILURE, false);
@@ -88,7 +93,6 @@ exports.default = async function notarizing(context) {
     console.log(`Notarization attempt ${attempt}/${maxAttempts}`);
     try {
       await notarize({
-        appBundleId: build.appId,
         appPath: appPath,
         appleId,
         appleIdPassword,
@@ -115,7 +119,18 @@ exports.default = async function notarizing(context) {
             return;
           }
         }
-        console.error('Notarization failed:', error);
+        const errorMsg = String(error.message || error);
+        console.error('Notarization failed.');
+        console.error('Full error:', errorMsg);
+        if (errorMsg.includes('UNEXPECTED_ERROR') || errorMsg.includes('statusCode: 500')) {
+          console.error(
+            'Apple returned UNEXPECTED_ERROR (500). Possible causes:\n' +
+            '  - App-specific password expired or revoked (regenerate at appleid.apple.com)\n' +
+            '  - Wrong Team ID (should match certificate: verify in Apple Developer portal)\n' +
+            '  - New Apple Terms of Service not accepted\n' +
+            '  - Certificate is App Store type instead of Developer ID Application'
+          );
+        }
         throw error;
       }
 
