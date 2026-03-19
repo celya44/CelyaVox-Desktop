@@ -179,7 +179,6 @@ jobs:
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           NOTARIZE_MAX_ATTEMPTS: "1"
-          NOTARIZE_ALLOW_TRANSIENT_FAILURE: "true"
       - name: Build for Linux (dev)
         if: matrix.platform == 'linux'
         run: npm run dist:linux:dev
@@ -230,7 +229,6 @@ jobs:
           NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           NOTARIZE_MAX_ATTEMPTS: "1"
-          NOTARIZE_ALLOW_TRANSIENT_FAILURE: "true"
       - name: Staple, verify and summarize macOS artifacts
         if: matrix.platform == 'mac'
         shell: bash
@@ -240,8 +238,6 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-
-          NOTARIZED="${{ env.NOTARIZATION_TRANSIENT_FAILURE }}"
 
           {
             echo "## macOS build — signature & notarization report"
@@ -255,56 +251,59 @@ jobs:
             local kind="$2"  # app | dmg
             local name
             name="$(basename "$path")"
+            local ok=true
 
-            local signed="❌" notarized="⚠️ skipped" stapled="⚠️ skipped" gatekeeper="⚠️ skipped"
+            local signed="❌" notarized="❌" stapled="❌" gatekeeper="❌"
 
             # --- Signature ---
             if codesign --verify --deep --strict "$path" 2>/dev/null; then
               signed="✅"
-              # Extract and print signing identity
               echo "[SIGN] $name:"
               codesign --display --verbose=4 "$path" 2>&1 | grep -E 'Authority|TeamIdentifier|Identifier' || true
             else
               echo "[SIGN FAIL] $name" >&2
               codesign --verify --deep --strict --verbose=4 "$path" 2>&1 || true
+              ok=false
             fi
 
-            if [ "$NOTARIZED" != "1" ]; then
-              # --- Staple ---
-              echo "[STAPLE] $name"
-              if xcrun stapler staple "$path" 2>&1; then
-                stapled="✅"
-              else
-                stapled="❌"
-                echo "[STAPLE FAIL] $name" >&2
-              fi
+            # --- Staple ---
+            echo "[STAPLE] $name"
+            if xcrun stapler staple "$path" 2>&1; then
+              stapled="✅"
+            else
+              echo "[STAPLE FAIL] $name" >&2
+              ok=false
+            fi
 
-              # --- Notarization ticket check ---
-              echo "[VALIDATE] $name"
-              if xcrun stapler validate "$path" 2>&1; then
-                notarized="✅"
-              else
-                notarized="❌"
-                echo "[VALIDATE FAIL] $name – not notarized or ticket missing" >&2
-              fi
+            # --- Notarization ticket check ---
+            echo "[VALIDATE] $name"
+            if xcrun stapler validate "$path" 2>&1; then
+              notarized="✅"
+            else
+              echo "[VALIDATE FAIL] $name – not notarized or ticket missing" >&2
+              ok=false
+            fi
 
-              # --- Gatekeeper ---
-              echo "[GATEKEEPER] $name"
-              local gk_ok=false
-              if [ "$kind" = "app" ]; then
-                if spctl -a -t execute --context context:primary-signature "$path" 2>&1; then gk_ok=true; fi
-              else
-                if spctl -a -t open --context context:primary-signature "$path" 2>&1; then gk_ok=true; fi
-              fi
-              if $gk_ok; then
+            # --- Gatekeeper ---
+            echo "[GATEKEEPER] $name"
+            if [ "$kind" = "app" ]; then
+              if spctl -a -t execute --context context:primary-signature "$path" 2>&1; then
                 gatekeeper="✅"
               else
-                gatekeeper="❌"
                 echo "[GATEKEEPER FAIL] $name" >&2
+                ok=false
+              fi
+            else
+              if spctl -a -t open --context context:primary-signature "$path" 2>&1; then
+                gatekeeper="✅"
+              else
+                echo "[GATEKEEPER FAIL] $name" >&2
+                ok=false
               fi
             fi
 
             echo "| \`$name\` | $signed | $notarized | $stapled | $gatekeeper |" >> "$GITHUB_STEP_SUMMARY"
+            $ok
           }
 
           ERRORS=0
@@ -317,16 +316,15 @@ jobs:
             check_artifact "$dmg" "dmg" || ERRORS=$((ERRORS + 1))
           done < <(find dist -type f -name "*.dmg")
 
-          if [ "$NOTARIZED" = "1" ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "> ⚠️ **Notarization skipped**: Apple returned HTTP 500 during this run. Artifacts are signed but not notarized/stapled. Re-run the workflow to retry." >> "$GITHUB_STEP_SUMMARY"
-            echo "[WARNING] Notarization skipped — artifacts signed but not notarized/stapled."
-          fi
-
           if [ "$ERRORS" -gt 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> ❌ **$ERRORS artifact(s) failed signature/notarization verification. Build rejected.**" >> "$GITHUB_STEP_SUMMARY"
             echo "[ERROR] $ERRORS artifact(s) failed verification." >&2
             exit 1
           fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> ✅ All artifacts are signed, notarized, stapled and accepted by Gatekeeper." >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4

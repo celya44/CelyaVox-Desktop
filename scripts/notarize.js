@@ -73,7 +73,6 @@ function verifyNotaryCredentials(appleId, appleIdPassword, appleTeamId) {
       '--password', '@env:_NOTARIZE_CHK_PWD',
       '--team-id', appleTeamId,
       '--output-format', 'json',
-      '--limit', '1',
     ],
     { encoding: 'utf8', timeout: 30000, env }
   );
