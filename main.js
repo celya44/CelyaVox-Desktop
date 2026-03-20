@@ -751,6 +751,27 @@ ipcMain.on('get-app-info-sync', (event) => {
 // ----------------------
 app.whenReady().then(async () => {
   registerTelProtocolClient();
+
+  if (process.platform === 'darwin') {
+    try {
+      const micStatus = systemPreferences.getMediaAccessStatus('microphone');
+      console.log('🎤 macOS microphone access status:', micStatus);
+      if (micStatus !== 'granted') {
+        const micGranted = await systemPreferences.askForMediaAccess('microphone');
+        console.log('🎤 macOS microphone access granted:', micGranted);
+      }
+
+      const camStatus = systemPreferences.getMediaAccessStatus('camera');
+      console.log('📷 macOS camera access status:', camStatus);
+      if (camStatus !== 'granted') {
+        const camGranted = await systemPreferences.askForMediaAccess('camera');
+        console.log('📷 macOS camera access granted:', camGranted);
+      }
+    } catch (error) {
+      console.warn('⚠️ Impossible de demander les autorisations media macOS:', error);
+    }
+  }
+
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     console.log('🔐 Permission globale demandée:', permission);
     const allowedPermissions = ['media', 'mediaDevices', 'video', 'audio', 'audioCapture', 'videoCapture'];

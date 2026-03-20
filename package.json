@@ -1,6 +1,6 @@
 {
   "name": "CelyaVox",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "Electron wrapper for CelyaVox",
   "repository": {
     "type": "git",
@@ -142,6 +142,12 @@
       "icon": "assets/app.icns",
       "category": "public.app-category.productivity",
       "hardenedRuntime": true,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "CelyaVox a besoin d'accéder au microphone pour les appels audio.",
+        "NSCameraUsageDescription": "CelyaVox a besoin d'accéder à la caméra pour les appels vidéo."
+      },
       "gatekeeperAssess": false,
       "target": [
         {
