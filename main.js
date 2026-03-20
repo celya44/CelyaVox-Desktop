@@ -275,15 +275,9 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // Forcer l'accès aux devices media (crucial pour RDP)
 app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
 app.commandLine.appendSwitch('enable-media-stream');
-
-// Désactiver les features Chromium sensibles dans ce wrapper.
-// Note: sous macOS, Fontations peut provoquer un crash natif au démarrage sur certains environnements.
-const disabledFeatures = [
-  'HardwareMediaKeyHandling',
-  'WebRtcHideLocalIpsWithMdns',
-  ...(process.platform === 'darwin' ? ['FontationsFontBackend'] : [])
-];
-app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
+// Forcer l'énumération des devices audio même en RDP
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 
 // ----------------------
 // Create main window
