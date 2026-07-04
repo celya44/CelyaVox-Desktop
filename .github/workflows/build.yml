@@ -135,23 +135,43 @@ jobs:
 
           echo "=== Apple credentials diagnostic ==="
 
+          # Vérifier que le fichier certificat existe
+          if [ ! -f "$CERT_PATH" ]; then
+            echo "::error::Certificate file not found at: $CERT_PATH"
+            exit 1
+          fi
+          echo "✅ Certificate file found at: $CERT_PATH"
+
           # Extract Team ID (OU field) and CN from the certificate
-          CERT_INFO="$(openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nokeys 2>/dev/null \
-            | openssl x509 -noout -subject 2>/dev/null || echo '')"
+          # Avec pipefail, on doit gérer les erreurs explicitement
+          CERT_INFO=""
+          if openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nokeys 2>/dev/null | openssl x509 -noout -subject 2>/dev/null > /tmp/cert_subject.txt; then
+            CERT_INFO="$(cat /tmp/cert_subject.txt)"
+          else
+            echo "::warning::Could not extract certificate information. Password may be incorrect or certificate is malformed."
+            CERT_INFO=""
+          fi
 
           # openssl outputs either:
           #   subject= /OU=TEAMID/CN=...   (legacy format)
           #   subject=OU = TEAMID, CN = ... (new format)
           # Extract the raw OU value and strip any prefix/spaces.
-          CERT_OU="$(echo "$CERT_INFO" \
-            | tr ',' '\n' \
-            | grep -E '^\s*(OU|subject.*OU)\s*=' \
-            | head -1 \
-            | sed 's/.*OU[[:space:]]*=[[:space:]]*//' \
-            | sed 's/[[:space:]].*//' \
-            | sed 's|/.*||' \
-            | tr -d ' \r\n')"
-          CERT_CN="$(echo "$CERT_INFO" | grep -oE 'CN[[:space:]]*=[[:space:]]*[^,/]+' | head -1 | sed 's/CN[[:space:]]*=[[:space:]]*//')"
+          CERT_OU=""
+          if [ -n "$CERT_INFO" ]; then
+            CERT_OU="$(echo "$CERT_INFO" \
+              | tr ',' '\n' \
+              | grep -E '^\s*(OU|subject.*OU)\s*=' \
+              | head -1 \
+              | sed 's/.*OU[[:space:]]*=[[:space:]]*//' \
+              | sed 's/[[:space:]].*//' \
+              | sed 's|/.*||' \
+              | tr -d ' \r\n')"
+          fi
+
+          CERT_CN=""
+          if [ -n "$CERT_INFO" ]; then
+            CERT_CN="$(echo "$CERT_INFO" | grep -oE 'CN[[:space:]]*=[[:space:]]*[^,/]+' | head -1 | sed 's/CN[[:space:]]*=[[:space:]]*//' || true)"
+          fi
 
           echo "Certificate CN (signing identity) : ${CERT_CN:-not found}"
           echo "Certificate OU (Team ID from cert): ${CERT_OU:-not found}"
@@ -167,7 +187,8 @@ jobs:
           if [ -z "$CERT_OU" ]; then
             echo "::warning::Could not extract Team ID from certificate. Verify APPLE_TEAM_ID manually."
           else
-            echo "Team ID matches certificate. ✅"
+            echo "✅ Team ID matches certificate."
+          fi
           fi
       - name: Generate Windows self-signed cert
         if: matrix.platform == 'windows'
