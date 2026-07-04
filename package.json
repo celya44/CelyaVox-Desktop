@@ -60,6 +60,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "loading.html",
       "notification-call.html",
       "enable-text-selection.css",
       "config.js",
