@@ -333,7 +333,7 @@ async function createWindow() {
   console.log('✅ Cache vidé (localStorage préservé)');
   
   // Charger d'abord la page de loading locale
-  const loadingPagePath = `file://${path.join(__dirname, 'loading.html')}`;
+  const loadingPagePath = `file://${path.join(app.getAppPath(), 'loading.html')}`;
   console.log('📄 Chargement page de loading:', loadingPagePath);
   
   mainWindow.loadURL(loadingPagePath).catch(err => {
