@@ -142,35 +142,32 @@ jobs:
           fi
           echo "✅ Certificate file found at: $CERT_PATH"
 
-          # Extract Team ID (OU field) and CN from the certificate
-          # Avec pipefail, on doit gérer les erreurs explicitement
-          CERT_INFO=""
-          if openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nokeys 2>/dev/null | openssl x509 -noout -subject 2>/dev/null > /tmp/cert_subject.txt; then
-            CERT_INFO="$(cat /tmp/cert_subject.txt)"
+          # Extract certificate to PEM format
+          CERT_PEM="/tmp/cert_extracted.pem"
+          if ! openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nokeys -out "$CERT_PEM" 2>/dev/null; then
+            echo "::warning::Could not extract certificate. Password may be incorrect or certificate is malformed."
+            CERT_OU=""
+            CERT_CN=""
           else
-            echo "::warning::Could not extract certificate information. Password may be incorrect or certificate is malformed."
-            CERT_INFO=""
-          fi
-
-          # openssl outputs either:
-          #   subject= /OU=TEAMID/CN=...   (legacy format)
-          #   subject=OU = TEAMID, CN = ... (new format)
-          # Extract the raw OU value and strip any prefix/spaces.
-          CERT_OU=""
-          if [ -n "$CERT_INFO" ]; then
-            CERT_OU="$(echo "$CERT_INFO" \
+            # Extract subject information from PEM
+            CERT_SUBJECT="$(openssl x509 -in "$CERT_PEM" -noout -subject 2>/dev/null || echo '')"
+            
+            # openssl outputs either:
+            #   subject= /OU=TEAMID/CN=...   (legacy format)
+            #   subject=OU = TEAMID, CN = ... (new format)
+            CERT_OU="$(echo "$CERT_SUBJECT" \
               | tr ',' '\n' \
               | grep -E '^\s*(OU|subject.*OU)\s*=' \
               | head -1 \
               | sed 's/.*OU[[:space:]]*=[[:space:]]*//' \
               | sed 's/[[:space:]].*//' \
               | sed 's|/.*||' \
-              | tr -d ' \r\n')"
-          fi
-
-          CERT_CN=""
-          if [ -n "$CERT_INFO" ]; then
-            CERT_CN="$(echo "$CERT_INFO" | grep -oE 'CN[[:space:]]*=[[:space:]]*[^,/]+' | head -1 | sed 's/CN[[:space:]]*=[[:space:]]*//' || true)"
+              | tr -d ' \r\n' || true)"
+            
+            CERT_CN="$(echo "$CERT_SUBJECT" \
+              | grep -oE 'CN[[:space:]]*=[[:space:]]*[^,/]+' \
+              | head -1 \
+              | sed 's/CN[[:space:]]*=[[:space:]]*//' || true)"
           fi
 
           echo "Certificate CN (signing identity) : ${CERT_CN:-not found}"
@@ -188,7 +185,6 @@ jobs:
             echo "::warning::Could not extract Team ID from certificate. Verify APPLE_TEAM_ID manually."
           else
             echo "✅ Team ID matches certificate."
-          fi
           fi
       - name: Generate Windows self-signed cert
         if: matrix.platform == 'windows'
