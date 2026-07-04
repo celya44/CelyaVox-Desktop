@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CelyaVox - Chargement</title>
+    <link rel="stylesheet" type="text/css" href="https://dtd6jl0d42sve.cloudfront.net/lib/fonts/font_awesome/css/font-awesome.min.css"/>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100%;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        #loader {
+            text-align: center;
+            opacity: 1;
+            transition: opacity 0.3s ease-out;
+        }
+
+        #loader.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loader-spinner {
+            font-size: 60px;
+            color: white;
+            margin-bottom: 20px;
+            animation: spin 2s linear infinite;
+        }
+
+        .loader-text {
+            color: white;
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .loader-subtext {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error Container */
+        #error-container {
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+            pointer-events: none;
+        }
+
+        #error-container.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .error-box {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            text-align: center;
+            position: absolute;
+        }
+
+        .error-icon {
+            font-size: 60px;
+            color: #dc3545;
+            margin-bottom: 20px;
+        }
+
+        .error-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .error-message {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .error-detail {
+            font-size: 14px;
+            color: #999;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        .retry-button {
+            background-color: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: 500;
+        }
+
+        .retry-button:hover {
+            background-color: #764ba2;
+        }
+
+        .retry-button:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Animation -->
+    <div id="loader">
+        <div class="loader-spinner fa fa-hourglass-half"></div>
+        <div class="loader-text">Chargement de l'application...</div>
+        <div class="loader-subtext">Veuillez patienter</div>
+    </div>
+
+    <!-- Error Container -->
+    <div id="error-container">
+        <div class="error-box">
+            <div class="error-icon fa fa-exclamation-triangle"></div>
+            <div class="error-title">Erreur de connexion</div>
+            <div class="error-message">Impossible de charger l'application.</div>
+            <div class="error-detail">Veuillez vérifier votre connexion Internet et réessayer.</div>
+            <button class="retry-button" onclick="retryConnection()">Réessayer</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration depuis le preload (injectée par Electron)
+        let serverUrl = 'http://localhost:3000';
+        let timeout = 30000;
+
+        function showError() {
+            const loader = document.getElementById('loader');
+            const errorContainer = document.getElementById('error-container');
+            
+            loader.classList.add('fade-out');
+            setTimeout(() => {
+                errorContainer.classList.add('show');
+            }, 300);
+        }
+
+        function retryConnection() {
+            const errorContainer = document.getElementById('error-container');
+            const loader = document.getElementById('loader');
+            
+            errorContainer.classList.remove('show');
+            loader.classList.remove('fade-out');
+            
+            loadRemoteApp();
+        }
+
+        function loadRemoteApp() {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            fetch(serverUrl, {
+                signal: controller.signal,
+                method: 'GET',
+                mode: 'no-cors'
+            })
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    console.log('✅ Serveur accessible, chargement de l\'application...');
+                    // Rediriger vers l'URL distante
+                    window.location.href = serverUrl;
+                })
+                .catch(err => {
+                    clearTimeout(timeoutId);
+                    if (err.name === 'AbortError') {
+                        console.error('⏱️ Timeout après', timeout / 1000, 'secondes');
+                    } else {
+                        console.error('❌ Erreur de connexion:', err.message);
+                    }
+                    showError();
+                });
+        }
+
+        // Recevoir la configuration du preload
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.celyavoxConfig) {
+                serverUrl = window.celyavoxConfig.serverUrl || serverUrl;
+                timeout = window.celyavoxConfig.timeout || timeout;
+            }
+            
+            console.log('🚀 Démarrage chargement depuis:', serverUrl);
+            loadRemoteApp();
+        });
+    </script>
+</body>
+</html>

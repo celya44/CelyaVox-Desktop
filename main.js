@@ -327,37 +327,26 @@ async function createWindow() {
 
   const serverUrl = config.serverUrl;
   let connectivityDialogShown = false;
-
-  const showConnectivityError = (details) => {
-    if (connectivityDialogShown) return;
-    connectivityDialogShown = true;
-    console.error('❌ Échec de chargement URL:', details);
-    dialog.showMessageBox(mainWindow, {
-      type: 'error',
-      title: 'Connexion Internet requise',
-      message: 'Impossible de charger l’application.',
-      detail: 'Veuillez contrôler la connectivité internet puis relancer l’application.'
-    });
-  };
   
   // Clear cache before loading (but keep localStorage for settings)
   await mainWindow.webContents.session.clearCache();
   console.log('✅ Cache vidé (localStorage préservé)');
   
-  // Charger l'URL puis forcer un reload sans cache
-  mainWindow.loadURL(serverUrl).then(() => {
-    console.log('🔄 Rechargement sans cache...');
-    mainWindow.webContents.reloadIgnoringCache();
-  }).catch(err => {
-    showConnectivityError(err.message || err);
+  // Charger d'abord la page de loading locale
+  const loadingPagePath = `file://${path.join(__dirname, 'loading.html')}`;
+  console.log('📄 Chargement page de loading:', loadingPagePath);
+  
+  mainWindow.loadURL(loadingPagePath).catch(err => {
+    console.error('❌ Erreur chargement page de loading:', err);
   });
 
-  // Détecter les erreurs de chargement (ex: pas de connexion)
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    if (!isMainFrame) return;
-    // Ignorer les navigations interrompues volontairement
-    if (errorCode === -3) return; // ERR_ABORTED
-    showConnectivityError(`${errorDescription} (code ${errorCode}) - ${validatedURL}`);
+  // Injecter la configuration du serveur dans la page
+  mainWindow.webContents.on('dom-ready', () => {
+    mainWindow.webContents.send('set-config', {
+      serverUrl: serverUrl,
+      timeout: 30000
+    });
+    console.log('✅ Configuration envoyée à la page');
   });
 
   // Show when ready
@@ -424,6 +413,16 @@ async function createWindow() {
   
   // Injecter les informations de version après le chargement de la page
   mainWindow.webContents.on('did-finish-load', () => {
+    // Vérifier si c'est l'application distante (pas la page de loading locale)
+    const currentUrl = mainWindow.webContents.getURL();
+    if (currentUrl.includes('loading.html')) {
+      console.log('📄 Page de loading locale chargée');
+      return; // C'est la page de loading, ne rien faire
+    }
+    
+    console.log('✅ Application distante chargée');
+    
+    // C'est l'application distante - injecter les infos
     const packageInfo = require('./package.json');
     const versionInfo = {
       app: packageInfo.version,
@@ -449,6 +448,25 @@ async function createWindow() {
       pendingTelNumber = null;
       sendTelToRenderer(number);
     }
+
+    // Log des devices media disponibles après chargement
+    try {
+      mainWindow.webContents.executeJavaScript(`
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+          console.log('🎤🔊 Devices détectés:', devices.length);
+          devices.forEach(device => {
+            console.log('  -', device.kind, ':', device.label || 'Sans nom');
+          });
+          return devices.length;
+        });
+      `).then(devices => {
+        console.log(`📱 Total devices media: ${devices}`);
+      }).catch(err => {
+        console.error('❌ Erreur énumération devices:', err);
+      });
+    } catch (err) {
+      console.error('❌ Erreur énumération devices:', err);
+    }
   });
 
   // Media permissions - accorder toutes les permissions media
@@ -461,24 +479,6 @@ async function createWindow() {
     } else {
       console.log('❌ Permission refusée:', permission);
       callback(false);
-    }
-  });
-  
-  // Log des devices media disponibles après chargement
-  mainWindow.webContents.on('did-finish-load', async () => {
-    try {
-      const devices = await mainWindow.webContents.executeJavaScript(`
-        navigator.mediaDevices.enumerateDevices().then(devices => {
-          console.log('🎤🔊 Devices détectés:', devices.length);
-          devices.forEach(device => {
-            console.log('  -', device.kind, ':', device.label || 'Sans nom');
-          });
-          return devices.length;
-        });
-      `);
-      console.log(`📱 Total devices media: ${devices}`);
-    } catch (err) {
-      console.error('❌ Erreur énumération devices:', err);
     }
   });
   
@@ -908,16 +908,6 @@ app.whenReady().then(async () => {
           }
         }
       },
-      {
-        label: 'Quitter',
-        click: () => {
-          app.isQuiting = true;
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.destroy();
-          }
-          app.quit();
-        }
-      },
       { type: 'separator' }
     ];
 
@@ -956,6 +946,18 @@ app.whenReady().then(async () => {
     } else {
       items.push({ label: 'Aucun favori', enabled: false });
     }
+
+    items.push({ type: 'separator' });
+    items.push({
+      label: 'Quitter',
+      click: () => {
+        app.isQuiting = true;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.destroy();
+        }
+        app.quit();
+      }
+    });
 
     return Menu.buildFromTemplate(items);
   }

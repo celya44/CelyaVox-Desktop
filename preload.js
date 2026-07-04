@@ -44,6 +44,24 @@ contextBridge.exposeInMainWorld('electron', {
   getAppInfo: () => ipcRenderer.invoke('get-app-info')
 })
 
+// Expose CelyaVox config for loading page
+const celyavoxConfig = {
+  serverUrl: 'http://localhost:3000',
+  timeout: 30000
+};
+
+// Fonction pour update la config depuis main
+function updateCelyavoxConfig(newConfig) {
+  Object.assign(celyavoxConfig, newConfig);
+  console.log('[Preload] Config mise à jour:', celyavoxConfig);
+}
+
+contextBridge.exposeInMainWorld('celyavoxConfig', celyavoxConfig);
+contextBridge.exposeInMainWorld('updateCelyavoxConfig', updateCelyavoxConfig);
+ipcRenderer.on('set-config', (event, config) => {
+  updateCelyavoxConfig(config);
+});
+
 // Detect RDP directly from process.env in preload
 const isRDP = !!(process.env.SESSIONNAME && process.env.SESSIONNAME.includes('RDP'));
 console.log('[Preload] SESSIONNAME:', process.env.SESSIONNAME);
