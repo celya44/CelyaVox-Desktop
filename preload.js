@@ -50,14 +50,32 @@ const celyavoxConfig = {
   timeout: 30000
 };
 
+// Listes des callbacks d'update
+let configUpdateCallbacks = [];
+
 // Fonction pour update la config depuis main
 function updateCelyavoxConfig(newConfig) {
   Object.assign(celyavoxConfig, newConfig);
   console.log('[Preload] Config mise à jour:', celyavoxConfig);
+  
+  // Notifier les listeners
+  configUpdateCallbacks.forEach(cb => {
+    try {
+      cb(celyavoxConfig);
+    } catch (err) {
+      console.error('[Preload] Erreur lors du callback:', err);
+    }
+  });
+}
+
+// Exposer une fonction pour s'abonner aux changements de config
+function onConfigUpdate(callback) {
+  configUpdateCallbacks.push(callback);
 }
 
 contextBridge.exposeInMainWorld('celyavoxConfig', celyavoxConfig);
 contextBridge.exposeInMainWorld('updateCelyavoxConfig', updateCelyavoxConfig);
+contextBridge.exposeInMainWorld('onConfigUpdate', onConfigUpdate);
 ipcRenderer.on('set-config', (event, config) => {
   updateCelyavoxConfig(config);
 });

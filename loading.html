@@ -207,32 +207,36 @@
         // Recevoir la configuration du preload
         window.addEventListener('DOMContentLoaded', () => {
             console.log('⏳ DOMContentLoaded - attendant configuration via IPC...');
-            // Attendre le message IPC de main.js
-            // Timeout de 2 secondes pour éviter une attente infinie
-            const configTimeout = setTimeout(() => {
-                if (!configReceived || !serverUrl) {
-                    console.error('⚠️ Pas de configuration reçue après 2s, vérifier main.js');
-                    showError();
-                }
-            }, 2000);
-
-            // Écouter la configuration via IPC
-            const handleConfig = (serverUrlVal, timeoutVal) => {
-                clearTimeout(configTimeout);
+            
+            // S'abonner aux changements de config
+            if (window.onConfigUpdate) {
+                window.onConfigUpdate((config) => {
+                    console.log('✅ Configuration mise à jour:', config);
+                    if (config.serverUrl) {
+                        serverUrl = config.serverUrl;
+                        timeout = config.timeout || timeout;
+                        configReceived = true;
+                        loadRemoteApp();
+                    }
+                });
+            }
+            
+            // Vérifier si la config est déjà disponible (cas rare)
+            if (window.celyavoxConfig && window.celyavoxConfig.serverUrl) {
+                console.log('✅ Configuration déjà disponible:', window.celyavoxConfig.serverUrl);
+                serverUrl = window.celyavoxConfig.serverUrl;
+                timeout = window.celyavoxConfig.timeout || timeout;
                 configReceived = true;
-                serverUrl = serverUrlVal;
-                timeout = timeoutVal || timeout;
-                console.log('✅ Configuration reçue via IPC:', serverUrl);
                 loadRemoteApp();
-            };
-
-            // Si preload expose celyavoxConfig.serverUrl (peut être null)
-            if (window.celyavoxConfig) {
-                if (window.celyavoxConfig.serverUrl) {
-                    handleConfig(window.celyavoxConfig.serverUrl, window.celyavoxConfig.timeout);
-                } else {
-                    console.log('⏳ celyavoxConfig.serverUrl est null, attendant IPC...');
-                }
+            } else {
+                console.log('⏳ celyavoxConfig.serverUrl est null, attendant IPC...');
+                // Timeout de 3 secondes pour éviter une attente infinie
+                setTimeout(() => {
+                    if (!configReceived || !serverUrl) {
+                        console.error('⚠️ Pas de configuration reçue après 3s, vérifier main.js');
+                        showError();
+                    }
+                }, 3000);
             }
         });
     </script>
