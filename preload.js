@@ -46,7 +46,7 @@ contextBridge.exposeInMainWorld('electron', {
 
 // Expose CelyaVox config for loading page
 const celyavoxConfig = {
-  serverUrl: 'http://localhost:3000',
+  serverUrl: null,  // Pas de valeur par défaut - attend le message IPC de main
   timeout: 30000
 };
 
