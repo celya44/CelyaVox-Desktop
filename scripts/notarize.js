@@ -50,8 +50,10 @@ function isTransientNotaryError(error) {
   const message = String(error.message || error);
   return (
     message.includes('statusCode: 500') ||
+    message.includes('statusCode: 403') ||
     message.includes('UNEXPECTED_ERROR') ||
-    message.includes('Please try again at a later time')
+    message.includes('Please try again at a later time') ||
+    message.includes('A required agreement is missing or has expired')
   );
 }
 
@@ -241,6 +243,15 @@ exports.default = async function notarizing(context) {
             '  - Wrong Team ID (should match certificate: verify in Apple Developer portal)\n' +
             '  - New Apple Terms of Service not accepted\n' +
             '  - Certificate is App Store type instead of Developer ID Application'
+          );
+        }
+        if (errorMsg.includes('statusCode: 403') || errorMsg.includes('A required agreement is missing or has expired')) {
+          console.error(
+            'Apple returned HTTP 403 — Agreement issue. Possible causes:\n' +
+            '  - Apple Developer Agreement expired or not signed\n' +
+            '  - Required legal agreements need renewal at developer.apple.com\n' +
+            '  - Team member role restricted from notarization\n' +
+            'This may be a transient issue — the workflow will retry if NOTARIZE_ALLOW_TRANSIENT_FAILURE is enabled.'
           );
         }
         throw error;
