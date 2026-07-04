@@ -199,13 +199,26 @@
 
         // Recevoir la configuration du preload
         window.addEventListener('DOMContentLoaded', () => {
-            if (window.celyavoxConfig) {
-                serverUrl = window.celyavoxConfig.serverUrl || serverUrl;
+            // Lire la config exposée par le preload (définit dans contextBridge)
+            if (window.celyavoxConfig && window.celyavoxConfig.serverUrl) {
+                serverUrl = window.celyavoxConfig.serverUrl;
                 timeout = window.celyavoxConfig.timeout || timeout;
+                console.log('🚀 Configuration reçue du preload:', serverUrl);
+                loadRemoteApp();
+            } else {
+                console.log('⏳ En attente de configuration depuis main...');
+                // Attendre le message IPC de main.js avec timeout de sécurité
+                setTimeout(() => {
+                    if (window.celyavoxConfig && window.celyavoxConfig.serverUrl) {
+                        serverUrl = window.celyavoxConfig.serverUrl;
+                        timeout = window.celyavoxConfig.timeout || timeout;
+                        console.log('🚀 Configuration reçue via IPC:', serverUrl);
+                    } else {
+                        console.log('⚠️ Aucune configuration, utilisant par défaut:', serverUrl);
+                    }
+                    loadRemoteApp();
+                }, 500);
             }
-            
-            console.log('🚀 Démarrage chargement depuis:', serverUrl);
-            loadRemoteApp();
         });
     </script>
 </body>

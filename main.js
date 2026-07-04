@@ -340,13 +340,23 @@ async function createWindow() {
     console.error('❌ Erreur chargement page de loading:', err);
   });
 
-  // Injecter la configuration du serveur dans la page
+  // Envoyer la configuration immédiatement après le chargement
+  // Le preload va exposer celyavoxConfig, et on l'update via IPC
+  setTimeout(() => {
+    mainWindow.webContents.send('set-config', {
+      serverUrl: serverUrl,
+      timeout: 30000
+    });
+    console.log('✅ Configuration envoyée:', serverUrl);
+  }, 100);
+
+  // Injecter la configuration du serveur dans la page (backup si le preload n'a pas pu faire)
   mainWindow.webContents.on('dom-ready', () => {
     mainWindow.webContents.send('set-config', {
       serverUrl: serverUrl,
       timeout: 30000
     });
-    console.log('✅ Configuration envoyée à la page');
+    console.log('✅ Configuration envoyée (dom-ready):', serverUrl);
   });
 
   // Show when ready
