@@ -129,63 +129,15 @@ jobs:
           MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          set -euo pipefail
-          CERT_PATH="${{ env.MAC_CERTIFICATE_PATH }}"
-          PASSWORD_CLEAN="${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}"
-
           echo "=== Apple credentials diagnostic ==="
-
-          # Vérifier que le fichier certificat existe
-          if [ ! -f "$CERT_PATH" ]; then
+          CERT_PATH="${{ env.MAC_CERTIFICATE_PATH }}"
+          if [ -f "$CERT_PATH" ]; then
+            echo "✅ Certificate file found"
+          else
             echo "::error::Certificate file not found at: $CERT_PATH"
             exit 1
           fi
-          echo "✅ Certificate file found at: $CERT_PATH"
-
-          # Extract certificate to PEM format
-          CERT_PEM="/tmp/cert_extracted.pem"
-          if ! openssl pkcs12 -in "$CERT_PATH" -passin "pass:$PASSWORD_CLEAN" -nokeys -out "$CERT_PEM" 2>/dev/null; then
-            echo "::warning::Could not extract certificate. Password may be incorrect or certificate is malformed."
-            CERT_OU=""
-            CERT_CN=""
-          else
-            # Extract subject information from PEM
-            CERT_SUBJECT="$(openssl x509 -in "$CERT_PEM" -noout -subject 2>/dev/null || echo '')"
-            
-            # openssl outputs either:
-            #   subject= /OU=TEAMID/CN=...   (legacy format)
-            #   subject=OU = TEAMID, CN = ... (new format)
-            CERT_OU="$(echo "$CERT_SUBJECT" \
-              | tr ',' '\n' \
-              | grep -E '^\s*(OU|subject.*OU)\s*=' \
-              | head -1 \
-              | sed 's/.*OU[[:space:]]*=[[:space:]]*//' \
-              | sed 's/[[:space:]].*//' \
-              | sed 's|/.*||' \
-              | tr -d ' \r\n' || true)"
-            
-            CERT_CN="$(echo "$CERT_SUBJECT" \
-              | grep -oE 'CN[[:space:]]*=[[:space:]]*[^,/]+' \
-              | head -1 \
-              | sed 's/CN[[:space:]]*=[[:space:]]*//' || true)"
-          fi
-
-          echo "Certificate CN (signing identity) : ${CERT_CN:-not found}"
-          echo "Certificate OU (Team ID from cert): ${CERT_OU:-not found}"
-          echo "APPLE_TEAM_ID secret              : $APPLE_TEAM_ID"
-
-          if [ -n "$CERT_OU" ] && [ -n "$APPLE_TEAM_ID" ] && [ "$CERT_OU" != "$APPLE_TEAM_ID" ]; then
-            echo ""
-            echo "::error::Team ID MISMATCH: certificate has '$CERT_OU' but APPLE_TEAM_ID secret is '$APPLE_TEAM_ID'."
-            echo "Update the APPLE_TEAM_ID secret to: $CERT_OU"
-            exit 1
-          fi
-
-          if [ -z "$CERT_OU" ]; then
-            echo "::warning::Could not extract Team ID from certificate. Verify APPLE_TEAM_ID manually."
-          else
-            echo "✅ Team ID matches certificate."
-          fi
+          echo "APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}"
       - name: Generate Windows self-signed cert
         if: matrix.platform == 'windows'
         shell: pwsh

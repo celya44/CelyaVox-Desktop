@@ -50,10 +50,8 @@ function isTransientNotaryError(error) {
   const message = String(error.message || error);
   return (
     message.includes('statusCode: 500') ||
-    message.includes('statusCode: 403') ||
     message.includes('UNEXPECTED_ERROR') ||
-    message.includes('Please try again at a later time') ||
-    message.includes('A required agreement is missing or has expired')
+    message.includes('Please try again at a later time')
   );
 }
 
@@ -149,6 +147,22 @@ exports.default = async function notarizing(context) {
     tempKeyPath = path.join(os.tmpdir(), `AuthKey_${apiKeyId}.p8`);
     fs.writeFileSync(tempKeyPath, apiKeyContent, { mode: 0o600 });
 
+    console.log('Checking API key credentials via notarytool history...');
+    const credCheck = verifyNotaryCredentialsApiKey(tempKeyPath, apiKeyId, apiIssuer);
+    if (!credCheck.ok) {
+      fs.unlinkSync(tempKeyPath);
+      tempKeyPath = null;
+      console.error(
+        'API Key credential check FAILED.\n' +
+        'Verify secrets: APPLE_API_KEY_CONTENT, APPLE_API_KEY_ID, APPLE_API_ISSUER.\n' +
+        (credCheck.detail ? `\nnotarytool output:\n${credCheck.detail}` : '')
+      );
+      setGithubEnv('NOTARIZATION_STATUS', 'credential-error');
+      setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
+      throw new Error('Notarization API key credential check failed — fix credentials and retry.');
+    }
+    console.log('API Key credentials check passed.');
+
     notarizeOptions = { appPath, appleApiKey: tempKeyPath, appleApiKeyId: apiKeyId, appleApiIssuer: apiIssuer };
 
   } else {
@@ -164,6 +178,24 @@ exports.default = async function notarizing(context) {
     console.log(`  Team ID  : ${maskedTeam}`);
     console.log(`  Bundle ID: ${build.appId}`);
 
+    console.log('Checking credentials via notarytool history...');
+    const credCheck = verifyNotaryCredentials(appleId, appleIdPassword, appleTeamId);
+    if (!credCheck.ok) {
+      console.error(
+        'Notarization credential check FAILED. The build cannot be notarized.\n' +
+        'Likely causes:\n' +
+        '  1. App-specific password expired/revoked → regenerate at https://appleid.apple.com\n' +
+        '  2. Apple Developer Agreement updated → accept at https://developer.apple.com\n' +
+        '  3. Wrong Team ID in NOTARIZE_APPLE_TEAM_ID secret\n' +
+        '  4. Account subscription expired\n' +
+        (credCheck.detail ? `\nnotarytool output:\n${credCheck.detail}` : '')
+      );
+      setGithubEnv('NOTARIZATION_STATUS', 'credential-error');
+      setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
+      throw new Error('Notarization credential check failed — fix credentials and retry.');
+    }
+    console.log('Credentials check passed.');
+
     notarizeOptions = { appPath, appleId, appleIdPassword, teamId: appleTeamId };
   }
 
@@ -176,38 +208,6 @@ exports.default = async function notarizing(context) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     console.log(`Notarization attempt ${attempt}/${maxAttempts}`);
     try {
-      // Vérifier les credentials à chaque tentative
-      if (useApiKey) {
-        console.log('Checking API key credentials via notarytool history...');
-        const credCheck = verifyNotaryCredentialsApiKey(tempKeyPath, apiKeyId, apiIssuer);
-        if (!credCheck.ok) {
-          console.error(
-            'API Key credential check FAILED.\n' +
-            'Verify secrets: APPLE_API_KEY_CONTENT, APPLE_API_KEY_ID, APPLE_API_ISSUER.\n' +
-            (credCheck.detail ? `\nnotarytool output:\n${credCheck.detail}` : '')
-          );
-          throw new Error('API Key credential check failed: ' + (credCheck.detail || 'Unknown error'));
-        }
-        console.log('API Key credentials check passed.');
-      } else {
-        console.log('Checking credentials via notarytool history...');
-        const credCheck = verifyNotaryCredentials(appleId, appleIdPassword, appleTeamId);
-        if (!credCheck.ok) {
-          console.error(
-            'Notarization credential check FAILED.\n' +
-            'Likely causes:\n' +
-            '  1. App-specific password expired/revoked → regenerate at https://appleid.apple.com\n' +
-            '  2. Apple Developer Agreement updated → accept at https://developer.apple.com\n' +
-            '  3. Wrong Team ID in NOTARIZE_APPLE_TEAM_ID secret\n' +
-            '  4. Account subscription expired\n' +
-            (credCheck.detail ? `\nnotarytool output:\n${credCheck.detail}` : '')
-          );
-          throw new Error('Credential check failed: ' + (credCheck.detail || 'Unknown error'));
-        }
-        console.log('Credentials check passed.');
-      }
-
-      // Procéder à la notarization
       await notarize(notarizeOptions);
       console.log('Notarization completed successfully');
       setGithubEnv('NOTARIZATION_TRANSIENT_FAILURE', '0');
@@ -220,7 +220,7 @@ exports.default = async function notarizing(context) {
       if (!transient || isLastAttempt) {
         if (transient && isLastAttempt) {
           console.error(
-            `Notarization failed after ${maxAttempts} attempts due to Apple transient server errors (HTTP 500/403). Re-run the workflow later.`
+            `Notarization failed after ${maxAttempts} attempts due to Apple transient server errors (HTTP 500). Re-run the workflow later.`
           );
 
           if (allowTransientFailure) {
