@@ -684,6 +684,39 @@ function showHangupNotification(callerInfo = 'Correspondant') {
 }
 
 // ----------------------
+// Fonction : Notification d'appel en absence
+// ----------------------
+function showMissedCallNotification(callerInfo = 'Correspondant') {
+  console.log('📞 showMissedCallNotification appelée pour:', callerInfo);
+  
+  // Vérifier si la fenêtre est minimisée
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMinimized()) {
+    if (Notification.isSupported()) {
+      console.log('✅ Notification d\'appel manqué supportée, création...');
+      const notification = new Notification({
+        title: 'Appel en absence',
+        body: `Appel manqué de ${callerInfo}`,
+        silent: false, // laisser le son pour les appels manqués
+        icon: path.join(__dirname, 'app', 'Phone', 'avatars', 'logo.png'),
+        timeoutType: 'default'
+      });
+      notification.show();
+      console.log('✅ Notification d\'appel manqué affichée');
+      
+      // Fermer la notification après 7 secondes
+      setTimeout(() => {
+        notification.close();
+        console.log('✅ Notification d\'appel manqué fermée après 7s');
+      }, 7000);
+    } else {
+      console.log('❌ Notification non supportée');
+    }
+  } else {
+    console.log('ℹ️ La fenêtre n\'est pas minimisée, pas de notification');
+  }
+}
+
+// ----------------------
 // IPC handlers pour la notification d'appel
 // ----------------------
 console.log('🔧 Enregistrement des gestionnaires IPC pour les notifications d\'appel');
@@ -753,15 +786,31 @@ ipcMain.on('call-hangup', (event, data) => {
 });
 
 // Fermer la notification quand l'appel est annulé par le correspondant
-ipcMain.on('call-cancelled', () => {
-  console.log('🚫 [IPC] Appel annulé par le correspondant');
+ipcMain.on('call-cancelled', (event, data) => {
+  console.log('🚫 [IPC] Appel annulé par le correspondant', data);
   if (notificationWindow && !notificationWindow.isDestroyed()) {
     console.log('🚫 Fermeture de la fenêtre de notification...');
     notificationWindow.close();
     notificationWindow = null;
   }
   // Afficher une notification de raccroché si la fenêtre est minimisée
-  showHangupNotification('Correspondant');
+  const callerInfo = (data && data.callerName) || (data && data.callerNumber) || 'Correspondant';
+  console.log('🚫 Hangup notification pour:', callerInfo);
+  showHangupNotification(callerInfo);
+});
+
+// Notification d'appel en absence (appel non répondu)
+ipcMain.on('missed-call', (event, data) => {
+  console.log('📞 [IPC] Appel en absence détecté', data);
+  if (notificationWindow && !notificationWindow.isDestroyed()) {
+    console.log('📞 Fermeture de la fenêtre de notification existante...');
+    notificationWindow.close();
+    notificationWindow = null;
+  }
+  // Afficher une notification d'appel manqué si la fenêtre est minimisée
+  const callerInfo = (data && data.callerName) || (data && data.callerNumber) || 'Correspondant';
+  console.log('📞 Missed call notification pour:', callerInfo);
+  showMissedCallNotification(callerInfo);
 });
 
 ipcMain.on('tray-left-menu-cache', (event, payload) => {
