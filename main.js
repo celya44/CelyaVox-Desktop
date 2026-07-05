@@ -651,6 +651,39 @@ function showBackgroundNotification() {
 }
 
 // ----------------------
+// Fonction : Notification de raccroché
+// ----------------------
+function showHangupNotification(callerInfo = 'Correspondant') {
+  console.log('📞 showHangupNotification appelée pour:', callerInfo);
+  
+  // Vérifier si la fenêtre est minimisée
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMinimized()) {
+    if (Notification.isSupported()) {
+      console.log('✅ Notification de raccroché supportée, création...');
+      const notification = new Notification({
+        title: 'Appel terminé',
+        body: `${callerInfo} a raccroché.`,
+        silent: true, // pas de son
+        icon: path.join(__dirname, 'app', 'Phone', 'avatars', 'logo.png'),
+        timeoutType: 'default'
+      });
+      notification.show();
+      console.log('✅ Notification de raccroché affichée');
+      
+      // Fermer la notification après 5 secondes
+      setTimeout(() => {
+        notification.close();
+        console.log('✅ Notification de raccroché fermée après 5s');
+      }, 5000);
+    } else {
+      console.log('❌ Notification non supportée');
+    }
+  } else {
+    console.log('ℹ️ La fenêtre n\'est pas minimisée, pas de notification');
+  }
+}
+
+// ----------------------
 // IPC handlers pour la notification d'appel
 // ----------------------
 console.log('🔧 Enregistrement des gestionnaires IPC pour les notifications d\'appel');
@@ -712,6 +745,13 @@ ipcMain.on('call-rejected-from-app', () => {
   }
 });
 
+// Notification de raccroché (depuis le renderer)
+ipcMain.on('call-hangup', (event, data) => {
+  console.log('📞 [IPC] Événement call-hangup reçu', data);
+  const callerInfo = (data && data.callerName) || (data && data.callerNumber) || 'Correspondant';
+  showHangupNotification(callerInfo);
+});
+
 // Fermer la notification quand l'appel est annulé par le correspondant
 ipcMain.on('call-cancelled', () => {
   console.log('🚫 [IPC] Appel annulé par le correspondant');
@@ -720,6 +760,8 @@ ipcMain.on('call-cancelled', () => {
     notificationWindow.close();
     notificationWindow = null;
   }
+  // Afficher une notification de raccroché si la fenêtre est minimisée
+  showHangupNotification('Correspondant');
 });
 
 ipcMain.on('tray-left-menu-cache', (event, payload) => {
@@ -761,6 +803,10 @@ ipcMain.on('get-app-info-sync', (event) => {
 // ----------------------
 app.whenReady().then(async () => {
   registerTelProtocolClient();
+
+  // Configure auto-launch at system startup
+  app.setLoginItemSettings({ openAtLogin: true });
+  console.log('🚀 Auto-launch configuré: application se lancera au démarrage du système');
 
   if (process.platform === 'darwin') {
     try {

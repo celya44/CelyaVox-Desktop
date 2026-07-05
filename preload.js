@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld('electron', {
   // Convenience: signal incoming call to bring app to front
   incomingCall: (callerInfo) => ipcRenderer.invoke('incoming-call', callerInfo),
   bringToFront: () => ipcRenderer.invoke('incoming-call'),
+  // Notify hangup to main process
+  notifyHangup: (callerInfo) => ipcRenderer.send('call-hangup', { callerName: callerInfo || 'Correspondant' }),
   // Get app info
   getAppInfo: () => ipcRenderer.invoke('get-app-info')
 })
@@ -192,4 +194,27 @@ window.addEventListener('DOMContentLoaded', () => {
 //window.electron.openDialog({ properties: ['openFile'] }).then(result => {
 //  if (!result.canceled) console.log('selected', result.filePaths)
 //})
+
+// ----------------------
+// Hangup notification when window is minimized
+// ----------------------
+let currentCallInfo = { name: '', number: '' };
+
+// Listen for tray hangup command
+ipcRenderer.on('tray-hangup', () => {
+  console.log('[Preload] tray-hangup event received');
+  // Use current call info or default
+  const callerName = currentCallInfo.name || currentCallInfo.number || 'Correspondant';
+  console.log('[Preload] Notifying hangup for:', callerName);
+  ipcRenderer.send('call-hangup', { callerName });
+});
+
+// Store current call info when a call is active (this can be called from the phone.js)
+window.setCelyavoxCallInfo = function(callInfo) {
+  console.log('[Preload] Call info updated:', callInfo);
+  currentCallInfo = callInfo || { name: '', number: '' };
+};
+
+// Expose function to renderer so phone.js can use it
+contextBridge.exposeInMainWorld('setCelyavoxCallInfo', window.setCelyavoxCallInfo);
 

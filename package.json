@@ -137,7 +137,8 @@
       "artifactName": "${productName}-${version}.${ext}",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "perMachine": false
+      "perMachine": false,
+      "runAfterFinish": true
     },
     "mac": {
       "icon": "assets/app.icns",
