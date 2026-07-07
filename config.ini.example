@@ -1,0 +1,20 @@
+# Configuration CelyaVox Desktop
+# Fichier de configuration déployé avec l'application
+# Format: INI
+
+# REMARQUE: Les valeurs définies ici surchargeront les valeurs par défaut
+# Exemple (à décommenter et modifier selon vos besoins):
+
+# [server]
+# serverUrl=https://your-server.com/phone
+
+# [app]  
+# appName=Mon CelyaVox
+# appId=fr.mon-entreprise.celyavox
+
+# [window]
+# width=1280
+# height=820
+
+# [ui]
+# disableBuddies=0

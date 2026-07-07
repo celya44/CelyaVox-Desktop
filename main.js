@@ -20,11 +20,64 @@
 const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// ============================================================
+// Initialiser le fichier config.ini AVANT de charger config.js
+// ============================================================
+function initializeConfigFile() {
+  // Déterminer le chemin du userData
+  const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
+  let userDataPath;
+  
+  if (isDev) {
+    userDataPath = path.join(app.getPath('userData'), '..', 'celyavox-dev');
+  } else {
+    userDataPath = app.getPath('userData');
+  }
+  
+  // Créer le répertoire s'il n'existe pas
+  if (!fs.existsSync(userDataPath)) {
+    fs.mkdirSync(userDataPath, { recursive: true });
+  }
+  
+  const userConfigPath = path.join(userDataPath, 'config.ini');
+  const bundleConfigPath = path.join(process.resourcesPath || __dirname, 'config.ini');
+  
+  // Si le fichier utilisateur n'existe pas, le copier depuis le bundle
+  if (!fs.existsSync(userConfigPath) && fs.existsSync(bundleConfigPath)) {
+    try {
+      fs.copyFileSync(bundleConfigPath, userConfigPath);
+      console.log(`📋 Fichier config.ini copié vers: ${userConfigPath}`);
+    } catch (err) {
+      console.error(`❌ Erreur lors de la copie de config.ini: ${err.message}`);
+    }
+  } else if (fs.existsSync(userConfigPath)) {
+    console.log(`📋 Fichier config.ini existant utilisé: ${userConfigPath}`);
+  }
+  
+  // Passer le chemin via une variable d'environnement pour config.js
+  process.env.CELYAVOX_USER_CONFIG_PATH = userConfigPath;
+}
+
+// Appeler l'initialisation avant de charger config
+// app.getPath() fonctionne même avant ready
+try {
+  initializeConfigFile();
+} catch (err) {
+  console.warn(`⚠️  Initialisation config retardée: ${err.message}`);
+}
+
 const config = require('./config');
 
 console.log(`🚀 Démarrage de l'application en mode: ${config.environment}`);
 console.log(`📡 URL du serveur: ${config.serverUrl}`);
 console.log(`📦 Nom de l'application: ${config.appName}`);
+console.log(`📐 Taille de fenêtre: ${config.window?.width || 1280}x${config.window?.height || 820}px`);
+
+// Afficher les paramètres INI chargés
+if (Object.keys(config._iniConfig).length > 0) {
+  console.log(`⚙️  Configuration INI chargée:`, config._iniConfig);
+}
 
 // Séparer les données utilisateur entre dev et prod
 if (config.isDev) {
@@ -48,8 +101,11 @@ let windowStateSaveTimer = null;
 const TEL_PROTOCOL = 'tel';
 const TEL_PROMPT_STATE_FILE = path.join(app.getPath('userData'), 'tel-protocol-prompt.json');
 const WINDOW_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
-const DEFAULT_WINDOW_BOUNDS = { width: 1280, height: 820 };
-const MIN_WINDOW_BOUNDS = { width: 900, height: 600 };
+const DEFAULT_WINDOW_BOUNDS = { 
+  width: config.window?.width || 1280, 
+  height: config.window?.height || 820 
+};
+const MIN_WINDOW_BOUNDS = { width: 450, height: 300 };
 
 function loadWindowState() {
   try {
@@ -851,6 +907,13 @@ ipcMain.on('get-app-info-sync', (event) => {
 // App ready
 // ----------------------
 app.whenReady().then(async () => {
+  // Réinitialiser le fichier config si nécessaire
+  try {
+    initializeConfigFile();
+  } catch (err) {
+    console.error(`❌ Erreur lors de l'initialisation du config.ini: ${err.message}`);
+  }
+  
   registerTelProtocolClient();
 
   // Configure auto-launch at system startup
