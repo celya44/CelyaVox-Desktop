@@ -36,26 +36,6 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Verify config.ini exists
-        shell: bash
-        run: |
-          if [ ! -f config.ini ]; then
-            echo "ERROR: config.ini not found at root!"
-            echo "Files in project root:"
-            ls -la
-            exit 1
-          fi
-          echo "✅ config.ini found"
-          cat config.ini
-      - name: Debug - List files before build
-        shell: bash
-        run: |
-          echo "=== Checking config.ini and resources ==="
-          ls -la config.ini || echo "❌ config.ini not at root"
-          ls -la resources/ || echo "❌ resources/ not found"
-          ls -la config/ || echo "❌ config/ not found"
-          echo "=== Checking package.json build.files ==="
-          grep -A 30 '"files"' package.json || echo "Could not find files section"
       - name: Prepare macOS signing certificate
         if: matrix.platform == 'mac'
         shell: bash
@@ -142,22 +122,6 @@ jobs:
 
           echo "MAC_CERTIFICATE_PATH=$CERT_PATH" >> "$GITHUB_ENV"
           echo "MAC_CERTIFICATE_PASSWORD_CLEAN=$PASSWORD_CLEAN" >> "$GITHUB_ENV"
-      - name: Diagnose Apple credentials configuration
-        if: matrix.platform == 'mac'
-        shell: bash
-        env:
-          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          echo "=== Apple credentials diagnostic ==="
-          CERT_PATH="${{ env.MAC_CERTIFICATE_PATH }}"
-          if [ -f "$CERT_PATH" ]; then
-            echo "✅ Certificate file found"
-          else
-            echo "::error::Certificate file not found at: $CERT_PATH"
-            exit 1
-          fi
-          echo "APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}"
       - name: Generate Windows self-signed cert
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -190,21 +154,6 @@ jobs:
         run: npm run dist:linux:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Debug - Check if config.ini in DEB package
-        if: matrix.platform == 'linux'
-        shell: bash
-        run: |
-          echo "=== Checking DEB package contents ==="
-          DEB_FILE=$(find dist -name "*.deb" -type f | head -1)
-          if [ -z "$DEB_FILE" ]; then
-            echo "❌ No DEB file found"
-            ls -la dist/
-            exit 1
-          fi
-          echo "Found DEB: $DEB_FILE"
-          echo "=== Listing DEB contents ==="
-          dpkg -c "$DEB_FILE" | grep -i config.ini || echo "❌ config.ini NOT found in DEB"
-          dpkg -c "$DEB_FILE" | grep -i "\.ini" || echo "No .ini files found in DEB"
       - name: Build for Windows
         if: matrix.platform == 'windows'
         run: npm run dist:win:prod
