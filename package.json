@@ -88,7 +88,8 @@
       "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,*.md,test,tests,__tests__,.github,docs,doc,examples,example}"
     ],
     "asarUnpack": [
-      "notification-call.html"
+      "notification-call.html",
+      "resources/config.ini"
     ],
     "linux": {
       "icon": "assets/icons",
