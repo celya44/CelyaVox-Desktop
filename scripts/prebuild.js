@@ -69,4 +69,50 @@ if (env === 'dev') {
 // Sauvegarder le package.json modifié
 fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2));
 
+// ============================================================
+// Créer config.ini s'il n'existe pas
+// ============================================================
+const configDir = path.join(__dirname, '..', 'config');
+const configIniPath = path.join(configDir, 'config.ini');
+if (!fs.existsSync(configIniPath)) {
+  // Créer le dossier config s'il n'existe pas
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+  
+  const defaultConfigIni = `# Configuration CelyaVox Desktop
+# Fichier de configuration déployé avec l'application
+# Format: INI
+
+# Les valeurs par défaut sont utilisées si les paramètres ne sont pas définis ici
+
+# Taille de la fenêtre principale (pixels)
+# Par défaut: width=1280, height=820
+[window]
+# width=1280
+# height=820
+
+# Interface utilisateur
+# disableBuddies: Supprime le bouton "Ajouter un contact" du profil (0=activé, 1=désactivé)
+# disableDoNotDisturb: Masque le bloc "Ne pas déranger (DND)" des Fonctions avancées (0=afficher, 1=masquer)
+# disableCallForward: Masque le bloc "Renvoi d'appel (CFU)" des Fonctions avancées (0=afficher, 1=masquer)
+# disableGUISipAccount: Masque le bloc "Compte" des paramètres (0=afficher, 1=masquer)
+[ui]
+# disableBuddies=0
+# disableDoNotDisturb=0
+# disableCallForward=0
+# disableGUISipAccount=0
+`;
+  
+  try {
+    fs.writeFileSync(configIniPath, defaultConfigIni, 'utf8');
+    console.log('📝 Fichier config.ini créé avec les valeurs par défaut');
+  } catch (err) {
+    console.error('❌ Erreur lors de la création de config.ini:', err.message);
+    process.exit(1);
+  }
+} else {
+  console.log('✅ Fichier config.ini existant trouvé');
+}
+
 console.log('\n✅ package.json mis à jour pour le build\n');

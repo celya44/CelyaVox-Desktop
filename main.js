@@ -22,52 +22,87 @@ const path = require('path');
 const fs = require('fs');
 
 // ============================================================
-// Initialiser le fichier config.ini AVANT de charger config.js
+// Initialiser le fichier config.ini
 // ============================================================
 function initializeConfigFile() {
   // Déterminer le chemin du userData
   const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
   let userDataPath;
   
-  if (isDev) {
-    userDataPath = path.join(app.getPath('userData'), '..', 'celyavox-dev');
-  } else {
-    userDataPath = app.getPath('userData');
+  try {
+    if (isDev) {
+      userDataPath = path.join(app.getPath('userData'), '..', 'celyavox-dev');
+    } else {
+      userDataPath = app.getPath('userData');
+    }
+  } catch (err) {
+    console.error(`❌ Erreur lors de la détermination du chemin userData: ${err.message}`);
+    return;
   }
   
   // Créer le répertoire s'il n'existe pas
-  if (!fs.existsSync(userDataPath)) {
-    fs.mkdirSync(userDataPath, { recursive: true });
+  try {
+    if (!fs.existsSync(userDataPath)) {
+      fs.mkdirSync(userDataPath, { recursive: true });
+      console.log(`📁 Répertoire créé: ${userDataPath}`);
+    }
+  } catch (err) {
+    console.error(`❌ Erreur lors de la création du répertoire: ${err.message}`);
+    return;
   }
   
   const userConfigPath = path.join(userDataPath, 'config.ini');
-  const bundleConfigPath = path.join(process.resourcesPath || __dirname, 'config.ini');
+  
+  // Essayer plusieurs chemins pour trouver config.ini dans le bundle
+  let bundleConfigPath = null;
+  const possiblePaths = [
+    path.join(process.resourcesPath || __dirname, 'config', 'config.ini'),
+    path.join(process.resourcesPath || __dirname, 'config.ini'),
+    path.join(__dirname, 'config', 'config.ini'),
+    path.join(__dirname, 'config.ini'),
+    path.join(app.getAppPath(), 'config', 'config.ini'),
+    path.join(app.getAppPath(), 'config.ini'),
+  ];
+  
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      bundleConfigPath = p;
+      console.log(`✅ Fichier bundle trouvé: ${bundleConfigPath}`);
+      break;
+    }
+  }
   
   // Si le fichier utilisateur n'existe pas, le copier depuis le bundle
-  if (!fs.existsSync(userConfigPath) && fs.existsSync(bundleConfigPath)) {
-    try {
-      fs.copyFileSync(bundleConfigPath, userConfigPath);
-      console.log(`📋 Fichier config.ini copié vers: ${userConfigPath}`);
-    } catch (err) {
-      console.error(`❌ Erreur lors de la copie de config.ini: ${err.message}`);
+  if (!fs.existsSync(userConfigPath)) {
+    if (bundleConfigPath) {
+      try {
+        fs.copyFileSync(bundleConfigPath, userConfigPath);
+        console.log(`📋 Fichier config.ini copié vers: ${userConfigPath}`);
+      } catch (err) {
+        console.error(`❌ Erreur lors de la copie de config.ini: ${err.message}`);
+      }
+    } else {
+      console.warn(`⚠️  Fichier bundle config.ini non trouvé dans: ${possiblePaths.join(', ')}`);
     }
-  } else if (fs.existsSync(userConfigPath)) {
-    console.log(`📋 Fichier config.ini existant utilisé: ${userConfigPath}`);
+  } else {
+    console.log(`✅ Fichier config.ini existant utilisé: ${userConfigPath}`);
   }
   
   // Passer le chemin via une variable d'environnement pour config.js
   process.env.CELYAVOX_USER_CONFIG_PATH = userConfigPath;
 }
 
-// Appeler l'initialisation avant de charger config
-// app.getPath() fonctionne même avant ready
-try {
-  initializeConfigFile();
-} catch (err) {
-  console.warn(`⚠️  Initialisation config retardée: ${err.message}`);
-}
-
 const config = require('./config');
+
+// Log de debug pour vérifier les chemins
+console.log(`
+🔍 INFORMATION DEBUG CONFIG:
+  - process.resourcesPath: ${process.resourcesPath}
+  - __dirname: ${__dirname}
+  - process.env.CELYAVOX_USER_CONFIG_PATH: ${process.env.CELYAVOX_USER_CONFIG_PATH}
+  - NODE_ENV: ${process.env.NODE_ENV}
+  - APP_ENV: ${process.env.APP_ENV}
+`);
 
 console.log(`🚀 Démarrage de l'application en mode: ${config.environment}`);
 console.log(`📡 URL du serveur: ${config.serverUrl}`);
