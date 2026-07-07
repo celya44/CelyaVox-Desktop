@@ -72,12 +72,12 @@ fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2));
 // ============================================================
 // Créer config.ini s'il n'existe pas
 // ============================================================
-const configDir = path.join(__dirname, '..', 'config');
-const configIniPath = path.join(configDir, 'config.ini');
+const resourcesDir = path.join(__dirname, '..', 'resources');
+const configIniPath = path.join(resourcesDir, 'config.ini');
 if (!fs.existsSync(configIniPath)) {
-  // Créer le dossier config s'il n'existe pas
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true });
+  // Créer le dossier resources s'il n'existe pas
+  if (!fs.existsSync(resourcesDir)) {
+    fs.mkdirSync(resourcesDir, { recursive: true });
   }
   
   const defaultConfigIni = `# Configuration CelyaVox Desktop

@@ -21,8 +21,9 @@ let iniConfig = {};
 const getConfigPath = () => {
   const configPaths = [];
   
-  // Développement: chercher à la racine du projet ou dans le dossier config/
+  // Développement: chercher dans resources/, config/ ou à la racine du projet
   if (environment === 'dev') {
+    configPaths.push(path.join(__dirname, 'resources', 'config.ini'));
     configPaths.push(path.join(__dirname, 'config', 'config.ini'));
     configPaths.push(path.join(__dirname, 'config.ini'));
   }
@@ -34,7 +35,7 @@ const getConfigPath = () => {
   
   // Fallback: chercher dans le bundle app
   if (process.resourcesPath) {
-    configPaths.push(path.join(process.resourcesPath, 'config', 'config.ini'));
+    configPaths.push(path.join(process.resourcesPath, 'resources', 'config.ini'));
     configPaths.push(path.join(process.resourcesPath, 'config.ini'));
   }
   

@@ -56,11 +56,12 @@ function initializeConfigFile() {
   // Essayer plusieurs chemins pour trouver config.ini dans le bundle
   let bundleConfigPath = null;
   const possiblePaths = [
-    path.join(process.resourcesPath || __dirname, 'config', 'config.ini'),
+    path.join(process.resourcesPath || __dirname, 'resources', 'config.ini'),
     path.join(process.resourcesPath || __dirname, 'config.ini'),
-    path.join(__dirname, 'config', 'config.ini'),
+    path.join(__dirname, 'resources', 'config.ini'),
     path.join(__dirname, 'config.ini'),
-    path.join(app.getAppPath(), 'config', 'config.ini'),
+    path.join(__dirname, 'config', 'config.ini'),
+    path.join(app.getAppPath(), 'resources', 'config.ini'),
     path.join(app.getAppPath(), 'config.ini'),
   ];
   

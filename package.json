@@ -67,7 +67,7 @@
       "notification-call.html",
       "enable-text-selection.css",
       "config.js",
-      "config/**",
+      "resources/**",
       "package.json",
       "assets/icons/**",
       "!**/*.map",
