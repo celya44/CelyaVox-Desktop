@@ -47,6 +47,15 @@ jobs:
           fi
           echo "✅ config.ini found"
           cat config.ini
+      - name: Debug - List files before build
+        shell: bash
+        run: |
+          echo "=== Checking config.ini and resources ==="
+          ls -la config.ini || echo "❌ config.ini not at root"
+          ls -la resources/ || echo "❌ resources/ not found"
+          ls -la config/ || echo "❌ config/ not found"
+          echo "=== Checking package.json build.files ==="
+          grep -A 30 '"files"' package.json || echo "Could not find files section"
       - name: Prepare macOS signing certificate
         if: matrix.platform == 'mac'
         shell: bash
@@ -181,6 +190,21 @@ jobs:
         run: npm run dist:linux:prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Debug - Check if config.ini in DEB package
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          echo "=== Checking DEB package contents ==="
+          DEB_FILE=$(find dist -name "*.deb" -type f | head -1)
+          if [ -z "$DEB_FILE" ]; then
+            echo "❌ No DEB file found"
+            ls -la dist/
+            exit 1
+          fi
+          echo "Found DEB: $DEB_FILE"
+          echo "=== Listing DEB contents ==="
+          dpkg -c "$DEB_FILE" | grep -i config.ini || echo "❌ config.ini NOT found in DEB"
+          dpkg -c "$DEB_FILE" | grep -i "\.ini" || echo "No .ini files found in DEB"
       - name: Build for Windows
         if: matrix.platform == 'windows'
         run: npm run dist:win:prod
