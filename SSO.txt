@@ -1,0 +1,38 @@
++-------------------+
+| Electron          |
++---------+---------+
+          |
+          | 1. Lecture config.ini
+          |
+          | 2. Redirection vers ADFS
+          v
++-------------------+
+| ADFS              |
++---------+---------+
+          |
+          | 3. Authentification Windows (SSO)
+          |
+          | 4. Renvoie une assertion SAML signée
+          v
++-------------------+
+| Electron          |
++---------+---------+
+          |
+          | 5. Envoie l'assertion SAML à l'API
+          v
++-------------------+
+| API               |
++---------+---------+
+          |
+          | 6. Vérifie la signature SAML
+          |    (avec le certificat public ADFS)
+          |
+          | 7. Extrait le login
+          |
+          | 8. Charge les droits
+          |
+          | 9. Retourne la configuration
+          v
++-------------------+
+| Electron          |
++-------------------+
