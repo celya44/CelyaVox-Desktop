@@ -377,12 +377,43 @@ app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 async function createWindow() {
   const storedWindowState = loadWindowState();
   const storedBounds = storedWindowState ? storedWindowState.bounds : null;
-  const initialWidth = storedBounds
-    ? Math.max(MIN_WINDOW_BOUNDS.width, storedBounds.width)
-    : DEFAULT_WINDOW_BOUNDS.width;
-  const initialHeight = storedBounds
-    ? Math.max(MIN_WINDOW_BOUNDS.height, storedBounds.height)
-    : DEFAULT_WINDOW_BOUNDS.height;
+  
+  // Priority: config.ini > storedBounds > defaults
+  console.log(`
+📐 DÉTERMINATION DES DIMENSIONS DE LA FENÊTRE:
+  config.window.width: ${config.window?.width} (type: ${typeof config.window?.width})
+  config.window.height: ${config.window?.height} (type: ${typeof config.window?.height})
+  storedBounds.width: ${storedBounds?.width}
+  storedBounds.height: ${storedBounds?.height}
+  DEFAULT_WINDOW_BOUNDS: width=${DEFAULT_WINDOW_BOUNDS.width}, height=${DEFAULT_WINDOW_BOUNDS.height}
+`);
+  
+  // Convertir les dimensions de config en nombres
+  const configWidth = config.window?.width ? Number(config.window.width) : null;
+  const configHeight = config.window?.height ? Number(config.window.height) : null;
+  
+  console.log(`
+  configWidth (converti): ${configWidth} (isNaN: ${isNaN(configWidth)})
+  configHeight (converti): ${configHeight} (isNaN: ${isNaN(configHeight)})
+`);
+  
+  const initialWidth = (configWidth && !isNaN(configWidth)) 
+    ? Math.max(MIN_WINDOW_BOUNDS.width, configWidth)
+    : (storedBounds
+      ? Math.max(MIN_WINDOW_BOUNDS.width, storedBounds.width)
+      : DEFAULT_WINDOW_BOUNDS.width);
+      
+  const initialHeight = (configHeight && !isNaN(configHeight))
+    ? Math.max(MIN_WINDOW_BOUNDS.height, configHeight)
+    : (storedBounds
+      ? Math.max(MIN_WINDOW_BOUNDS.height, storedBounds.height)
+      : DEFAULT_WINDOW_BOUNDS.height);
+      
+  console.log(`
+  ✅ DIMENSIONS FINALES:
+    width: ${initialWidth}
+    height: ${initialHeight}
+`);
 
   // Détermine une icône de fenêtre appropriée (Linux utilise celle-ci)
   const windowIconCandidates = [
