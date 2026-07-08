@@ -435,20 +435,32 @@ async function createWindow() {
   // Envoyer la configuration immédiatement après le chargement
   // Le preload va exposer celyavoxConfig, et on l'update via IPC
   setTimeout(() => {
-    mainWindow.webContents.send('set-config', {
+    const configToSend = {
       serverUrl: serverUrl,
-      timeout: 30000
-    });
-    console.log('✅ Configuration envoyée:', serverUrl);
+      timeout: 30000,
+      window: config.window,
+      ui: config.ui
+    };
+    mainWindow.webContents.send('set-config', configToSend);
+    console.log(`
+✅ CONFIG ENVOYÉE VIA IPC:
+${JSON.stringify(configToSend, null, 2)}
+`);
   }, 100);
 
   // Injecter la configuration du serveur dans la page (backup si le preload n'a pas pu faire)
   mainWindow.webContents.on('dom-ready', () => {
-    mainWindow.webContents.send('set-config', {
+    const configToSend = {
       serverUrl: serverUrl,
-      timeout: 30000
-    });
-    console.log('✅ Configuration envoyée (dom-ready):', serverUrl);
+      timeout: 30000,
+      window: config.window,
+      ui: config.ui
+    };
+    mainWindow.webContents.send('set-config', configToSend);
+    console.log(`
+✅ CONFIG ENVOYÉE (dom-ready) VIA IPC:
+${JSON.stringify(configToSend, null, 2)}
+`);
   });
 
   // Show when ready

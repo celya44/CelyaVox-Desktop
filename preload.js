@@ -58,7 +58,10 @@ let configUpdateCallbacks = [];
 // Fonction pour update la config depuis main
 function updateCelyavoxConfig(newConfig) {
   Object.assign(celyavoxConfig, newConfig);
-  console.log('[Preload] Config mise à jour:', celyavoxConfig);
+  console.log(`
+[Preload] ✅ CONFIG REÇUE ET APPLIQUÉE:
+${JSON.stringify(celyavoxConfig, null, 2)}
+`);
   
   // Notifier les listeners
   configUpdateCallbacks.forEach(cb => {
