@@ -103,6 +103,10 @@ const config = {
       disableDoNotDisturb: false,
       disableCallForward: false,
       disableGUISipAccount: false
+    },
+    audio: {
+      ringerOutputLabel: null,  // Label du device de sortie pour la sonnerie
+      ringerGain: 1.0           // Volume de la sonnerie (0.0 à 1.0)
     }
   },
   prod: {
@@ -119,6 +123,10 @@ const config = {
       disableDoNotDisturb: false,
       disableCallForward: false,
       disableGUISipAccount: false
+    },
+    audio: {
+      ringerOutputLabel: null,  // Label du device de sortie pour la sonnerie
+      ringerGain: 1.0           // Volume de la sonnerie (0.0 à 1.0)
     }
   }
 };
@@ -174,6 +182,22 @@ if (iniConfig.ui) {
   }
 }
 
+if (iniConfig.audio) {
+  mergedConfig.audio = mergedConfig.audio || {};
+  console.log(`  🔊 Paramètres Audio trouvés dans INI:`, iniConfig.audio);
+  if (iniConfig.audio.ringerOutputLabel !== undefined) {
+    mergedConfig.audio.ringerOutputLabel = iniConfig.audio.ringerOutputLabel || null;
+    console.log(`    ✅ ringerOutputLabel: ${mergedConfig.audio.ringerOutputLabel}`);
+  }
+  if (iniConfig.audio.ringerGain !== undefined) {
+    const gain = parseFloat(iniConfig.audio.ringerGain);
+    if (isFinite(gain)) {
+      mergedConfig.audio.ringerGain = Math.min(Math.max(gain, 0), 1);
+      console.log(`    ✅ ringerGain: ${mergedConfig.audio.ringerGain}`);
+    }
+  }
+}
+
 module.exports = {
   environment,
   ...mergedConfig,
@@ -185,7 +209,9 @@ module.exports = {
   // Exposer les paramètres de fenêtre
   window: mergedConfig.window || currentConfig.window,
   // Exposer les paramètres UI
-  ui: mergedConfig.ui || currentConfig.ui
+  ui: mergedConfig.ui || currentConfig.ui,
+  // Exposer les paramètres Audio
+  audio: mergedConfig.audio || currentConfig.audio
 };
 
 console.log(`
@@ -193,4 +219,5 @@ console.log(`
   Environnement: ${environment}
   Window: ${JSON.stringify(mergedConfig.window || currentConfig.window)}
   UI: ${JSON.stringify(mergedConfig.ui || currentConfig.ui)}
+  Audio: ${JSON.stringify(mergedConfig.audio || currentConfig.audio)}
 `);

@@ -18,3 +18,15 @@
 
 # [ui]
 # disableBuddies=0
+# disableDoNotDisturb=0
+# disableCallForward=0
+# disableGUISipAccount=0
+
+# [audio]
+# Fixer le device de sortie de sonnerie par son label
+# Le label doit correspondre exactement au nom du device
+# Exemple: ringerOutputLabel=Haut-parleur intégré
+# Si cette option n'est pas définie, l'utilisateur peut choisir manuellement
+# ringerOutputLabel=
+# Fixer le volume de la sonnerie (0.0 à 1.0)
+# ringerGain=1.0

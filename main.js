@@ -83,7 +83,26 @@ function initializeConfigFile() {
         console.error(`❌ Erreur lors de la copie de config.ini: ${err.message}`);
       }
     } else {
-      console.warn(`⚠️  Fichier bundle config.ini non trouvé dans: ${possiblePaths.join(', ')}`);
+      // Fallback: créer un fichier config.ini par défaut dans le répertoire utilisateur
+      console.warn(`⚠️  Fichier bundle config.ini non trouvé. Création d'un fichier par défaut...`);
+      const defaultConfig = `; Configuration CelyaVox - Auto-généré si absent du bundle
+; Ce fichier peut être modifié pour personnaliser l'application
+
+[window]
+; width=1280
+; height=820
+
+[server]
+; Paramètres serveur optionnels
+; url=
+; port=
+`;
+      try {
+        fs.writeFileSync(userConfigPath, defaultConfig, 'utf-8');
+        console.log(`✅ Fichier config.ini par défaut créé: ${userConfigPath}`);
+      } catch (err) {
+        console.error(`❌ Erreur lors de la création du fichier config.ini: ${err.message}`);
+      }
     }
   } else {
     console.log(`✅ Fichier config.ini existant utilisé: ${userConfigPath}`);
@@ -470,7 +489,8 @@ async function createWindow() {
       serverUrl: serverUrl,
       timeout: 30000,
       window: config.window,
-      ui: config.ui
+      ui: config.ui,
+      audio: config.audio
     };
     mainWindow.webContents.send('set-config', configToSend);
     console.log(`
@@ -485,7 +505,8 @@ ${JSON.stringify(configToSend, null, 2)}
       serverUrl: serverUrl,
       timeout: 30000,
       window: config.window,
-      ui: config.ui
+      ui: config.ui,
+      audio: config.audio
     };
     mainWindow.webContents.send('set-config', configToSend);
     console.log(`
