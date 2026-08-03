@@ -29,12 +29,14 @@ contextBridge.exposeInMainWorld('electron', {
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
   send: (channel, ...args) => ipcRenderer.send(channel, ...args),
   on: (channel, cb) => {
-    console.log('[Preload] Registering listener for channel:', channel);
+    console.log('[Preload] 🟢 Registering listener for channel:', channel);
     const listener = (evt, ...args) => {
-      console.log('[Preload] Event received on channel:', channel, 'with args:', args);
+      console.log('[Preload] 🎯 Event received on channel:', channel, 'with args count:', args.length);
+      console.log('[Preload] 🎯 Args:', JSON.stringify(args, null, 2));
       cb(...args);
     };
     ipcRenderer.on(channel, listener);
+    console.log('[Preload] ✅ Listener enregistré avec succès');
     return listener;
   },
   // Convenience: signal incoming call to bring app to front
@@ -47,7 +49,12 @@ contextBridge.exposeInMainWorld('electron', {
   // Check if sso.ini file exists
   checkSsoFile: () => ipcRenderer.invoke('check-sso-file'),
   // Initialize SAML authentication
-  initSamlAuth: () => ipcRenderer.invoke('init-saml-auth')
+  initSamlAuth: () => ipcRenderer.invoke('init-saml-auth'),
+  // Signal that renderer is ready for IPC messages
+  ready: () => {
+    console.log('[Preload] 📢 Signaling renderer readiness to main process');
+    ipcRenderer.send('renderer-ready', { timestamp: Date.now() });
+  }
 })
 
 // Expose CelyaVox config for loading page

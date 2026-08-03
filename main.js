@@ -177,14 +177,22 @@ async function initializeSAML(mainWindow) {
         }
 
         // Envoyer les données au renderer (user + config du serveur de validation)
+        // ⚠️ Attendre 500ms pour laisser le renderer enregistrer ses listeners
         if (mainWindow && !mainWindow.isDestroyed()) {
-          console.log('📤 Envoi du message auth:saml-success au renderer');
-          console.log('📤 [DEBUG] Données à envoyer:', JSON.stringify({user: result.user, config: result.config || {}}, null, 2));
-          mainWindow.webContents.send('auth:saml-success', {
-            user: result.user,
-            config: result.config || {},
-          });
-          console.log('✅ Message auth:saml-success envoyé');
+          console.log('📤 [DEBUG] En attente de 500ms pour laisser les listeners du renderer se registrer...');
+          setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              console.log('📤 Envoi du message auth:saml-success au renderer');
+              console.log('📤 [DEBUG] Données à envoyer:', JSON.stringify({user: result.user, config: result.config || {}}, null, 2));
+              mainWindow.webContents.send('auth:saml-success', {
+                user: result.user,
+                config: result.config || {},
+              });
+              console.log('✅ Message auth:saml-success envoyé');
+            } else {
+              console.error('❌ mainWindow est null ou détruit après attente');
+            }
+          }, 500);
         } else {
           console.error('❌ mainWindow est null ou détruit');
         }
@@ -1134,6 +1142,13 @@ ipcMain.on('get-app-info-sync', (event) => {
     name: packageJson.name,
     isRDP: process.env.SESSIONNAME && process.env.SESSIONNAME.includes('RDP')
   };
+});
+
+// IPC: Renderer ready signal
+ipcMain.on('renderer-ready', (event, data) => {
+  console.log('\n🟡🟡🟡 === RENDERER READY SIGNAL REÇU === 🟡🟡🟡');
+  console.log('[DEBUG] Timestamp du signal:', data?.timestamp);
+  console.log('[DEBUG] Le renderer est maintenant prêt à recevoir les messages IPC');
 });
 
 // IPC: Check if sso.ini exists

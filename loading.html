@@ -206,15 +206,31 @@
                             console.log('✅ Utilisateur sauvegardé dans localStorage');
                         }
                         
-                        // Sauvegarder la configuration complète depuis l'API (41 paramètres)
+                    // Sauvegarder la configuration complète depuis l'API (41 paramètres)
                         if (result.config && typeof result.config === 'object') {
                             const configKeys = Object.keys(result.config);
-                            console.log(`📝 Sauvegarde de ${configKeys.length} paramètres de config dans localStorage...`);
+                            console.log(`📝 Sauvegarde de ${configKeys.length} paramètres de config...`);
+                            
+                            // IMPORTANT: Sauvegarder AUSSI dans localStorage AND cookies
+                            // localStorage pour l'app distante (si possible)
+                            // Cookies pour garantir la persistance à travers les origines
                             
                             let successCount = 0;
                             for (const [key, value] of Object.entries(result.config)) {
                                 const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+                                
+                                // Sauvegarder dans localStorage
                                 localStorage.setItem(key, stringValue);
+                                
+                                // Sauvegarder dans les cookies (important pour partager entre origines)
+                                // Valider la taille pour les cookies (max ~4KB par cookie)
+                                if (stringValue.length < 3500) {
+                                    document.cookie = `${encodeURIComponent(key)}=${encodeURIComponent(stringValue)}; path=/; SameSite=Lax; secure=false`;
+                                    console.log(`  🍪 Cookie défini: ${key}`);
+                                } else {
+                                    console.warn(`  ⚠️ Valeur trop grande pour cookie: ${key} (${stringValue.length} bytes)`);
+                                }
+                                
                                 successCount++;
                                 
                                 // Log pour les clés importantes
@@ -222,7 +238,7 @@
                                     console.log(`  ✅ ${key} = ${stringValue.substring(0, 50)}`);
                                 }
                             }
-                            console.log(`✅ ${successCount} paramètres sauvegardés dans localStorage`);
+                            console.log(`✅ ${successCount} paramètres sauvegardés (localStorage + cookies)`);
                             
                             // Vérification : afficher quelques valeurs pour confirmation
                             const storedSipDomain = localStorage.getItem('SipDomain');
@@ -230,6 +246,9 @@
                             console.log('🔍 Vérification localStorage:');
                             console.log('  - profileName:', storedProfileName?.substring(0, 30));
                             console.log('  - SipDomain:', storedSipDomain);
+                            
+                            // Afficher les cookies pour debug
+                            console.log('🍪 Cookies définis:', document.cookie);
                         }
                         
                         // Après authentification réussie, charger l'application
@@ -270,8 +289,33 @@
                 .then(response => {
                     clearTimeout(timeoutId);
                     console.log('✅ Serveur accessible, chargement de l\'application...');
+                    
+                    // Construire l'URL finale avec la configuration en paramètres
+                    let finalUrl = serverUrl;
+                    
+                    // Récupérer la config depuis localStorage (sauvegardée par SAML)
+                    const configData = {};
+                    const keysImportantes = ['SipDomain', 'SipUsername', 'SipPassword', 'profileName', 'WebSocketPort', 'wssServer', 'ServerPath'];
+                    
+                    for (const key of keysImportantes) {
+                        const value = localStorage.getItem(key);
+                        if (value) {
+                            configData[key] = value;
+                            console.log(`📝 Config à passer: ${key} = ${value.substring(0, 30)}`);
+                        }
+                    }
+                    
+                    // Si la config existe, l'ajouter à l'URL (format compatible avec app/Phone)
+                    if (Object.keys(configData).length > 0) {
+                        const configString = JSON.stringify(configData);
+                        finalUrl += (serverUrl.includes('?') ? '&' : '?') + 'celyavox_config=' + encodeURIComponent(configString);
+                        console.log('✅ Configuration ajoutée à l\'URL');
+                        console.log('[DEBUG] Paramètre celyavox_config:', configString.substring(0, 100));
+                    }
+                    
                     // Rediriger vers l'URL distante
-                    window.location.href = serverUrl;
+                    console.log('🌐 Redirection vers:', finalUrl.substring(0, 100) + '...');
+                    window.location.href = finalUrl;
                 })
                 .catch(err => {
                     clearTimeout(timeoutId);

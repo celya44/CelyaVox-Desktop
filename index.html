@@ -127,6 +127,12 @@ function registerSamlListeners() {
     });
     
     console.log('✅ Listeners SAML enregistrés');
+    
+    // Signaler au main process que les listeners sont prêts
+    if (window.electron && window.electron.ready) {
+        console.log('📢 Signal de readiness envoyé au main process');
+        window.electron.ready();
+    }
 }
 
 // Fonction pour lancer l'authentification SAML
