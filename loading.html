@@ -293,16 +293,13 @@
                     // Construire l'URL finale avec la configuration en paramètres
                     let finalUrl = serverUrl;
                     
-                    // Récupérer la config depuis localStorage (sauvegardée par SAML)
+                    // Récupérer TOUTES les données depuis localStorage (sauvegardées par SAML)
                     const configData = {};
-                    const keysImportantes = ['SipDomain', 'SipUsername', 'SipPassword', 'profileName', 'WebSocketPort', 'wssServer', 'ServerPath'];
-                    
-                    for (const key of keysImportantes) {
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
                         const value = localStorage.getItem(key);
-                        if (value) {
-                            configData[key] = value;
-                            console.log(`📝 Config à passer: ${key} = ${value.substring(0, 30)}`);
-                        }
+                        configData[key] = value;
+                        console.log(`📝 Config à passer: ${key} = ${value.substring(0, 50)}`);
                     }
                     
                     // Si la config existe, l'ajouter à l'URL en base64
@@ -312,6 +309,7 @@
                         finalUrl += (serverUrl.includes('?') ? '&' : '?') + 'celyavox_config=' + encodeURIComponent(configBase64);
                         console.log('✅ Configuration SAML encodée en base64');
                         console.log('[DEBUG] Taille config:', configBase64.length, 'bytes');
+                        console.log('[DEBUG] Nombre de paramètres:', Object.keys(configData).length);
                     }
                     
                     // Rediriger vers l'URL distante
