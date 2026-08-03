@@ -172,7 +172,7 @@ async function initializeSAML(mainWindow) {
 
         // Envoyer les données au renderer (user + config du serveur de validation)
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('saml:authenticated', {
+          mainWindow.webContents.send('auth:saml-success', {
             user: result.user,
             config: result.config || {},
           });
