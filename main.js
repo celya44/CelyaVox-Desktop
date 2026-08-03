@@ -1152,7 +1152,18 @@ ipcMain.handle('check-sso-file', async (event) => {
     console.log('[DEBUG] Fichier existe?', exists);
     
     if (exists) {
-      console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);\n      try {\n        const content = fs.readFileSync(ssoFilePath, 'utf-8');\n        console.log('[DEBUG] Contenu sso.ini (premiers 500 chars):', content.substring(0, 500));\n      } catch (e) {\n        console.warn('[DEBUG] Impossible de lire le contenu:', e.message);\n      }\n    } else {\n      console.log(`ℹ️ Fichier sso.ini non trouvé: ${ssoFilePath}`);\n    }\n    \n    return { exists, path: ssoFilePath };
+      console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);
+      try {
+        const content = fs.readFileSync(ssoFilePath, 'utf-8');
+        console.log('[DEBUG] Contenu sso.ini (premiers 500 chars):', content.substring(0, 500));
+      } catch (e) {
+        console.warn('[DEBUG] Impossible de lire le contenu:', e.message);
+      }
+    } else {
+      console.log(`ℹ️ Fichier sso.ini non trouvé: ${ssoFilePath}`);
+    }
+    
+    return { exists, path: ssoFilePath };
   } catch (err) {
     console.error(`❌ Erreur lors de la vérification du fichier sso.ini: ${err.message}`);
     return { exists: false, error: err.message };
