@@ -305,12 +305,13 @@
                         }
                     }
                     
-                    // Si la config existe, l'ajouter à l'URL (format compatible avec app/Phone)
+                    // Si la config existe, l'ajouter à l'URL en base64
                     if (Object.keys(configData).length > 0) {
                         const configString = JSON.stringify(configData);
-                        finalUrl += (serverUrl.includes('?') ? '&' : '?') + 'celyavox_config=' + encodeURIComponent(configString);
-                        console.log('✅ Configuration ajoutée à l\'URL');
-                        console.log('[DEBUG] Paramètre celyavox_config:', configString.substring(0, 100));
+                        const configBase64 = btoa(configString);
+                        finalUrl += (serverUrl.includes('?') ? '&' : '?') + 'celyavox_config=' + encodeURIComponent(configBase64);
+                        console.log('✅ Configuration SAML encodée en base64');
+                        console.log('[DEBUG] Taille config:', configBase64.length, 'bytes');
                     }
                     
                     // Rediriger vers l'URL distante
