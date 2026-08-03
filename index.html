@@ -67,9 +67,14 @@ function registerSamlListeners() {
     
     // Succès SAML (canal auth:saml-success)
     window.electron.on('auth:saml-success', (result) => {
+        console.log('🎉 [DEBUG] === EVENT auth:saml-success REÇU ===');
         console.log('✅ Authentification SAML réussie!');
+        console.log('📥 [DEBUG] result reçu:', JSON.stringify(result, null, 2));
         console.log('👤 Utilisateur:', result.user?.name);
         console.log('⚙️ Configuration serveur - nombre d\'entrées:', Object.keys(result.config || {}).length);
+        console.log('🔍 [DEBUG] Type de result.config:', typeof result.config);
+        console.log('🔍 [DEBUG] result.config est undefined?', result.config === undefined);
+        console.log('🔍 [DEBUG] result.config est null?', result.config === null);
         
         // Sauvegarder les informations utilisateur
         if (result.user) {
@@ -81,12 +86,14 @@ function registerSamlListeners() {
         if (result.config && typeof result.config === 'object') {
             const configKeys = Object.keys(result.config);
             console.log(`📝 Sauvegarde de ${configKeys.length} paramètres de config dans localStorage...`);
+            console.log('📝 [DEBUG] Clés de config:', configKeys);
             
             let successCount = 0;
             for (const [key, value] of Object.entries(result.config)) {
                 const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
                 localStorage.setItem(key, stringValue);
                 successCount++;
+                console.log(`  💾 [DEBUG] Sauvegardé: ${key} = ${stringValue.substring(0, 50)}${stringValue.length > 50 ? '...' : ''}`);
                 
                 if (key === 'profileName' || key === 'SipDomain' || key === 'SipUsername' || key === 'SipPassword') {
                     console.log(`  ✅ ${key} = ${stringValue.substring(0, 50)}`);
@@ -95,8 +102,14 @@ function registerSamlListeners() {
             console.log(`✅ ${successCount} paramètres sauvegardés dans localStorage`);
             
             // Vérifier que localStorage a reçu les données
-            const storedSipDomain = localStorage.getItem('SipDomain');
-            console.log('🔍 Vérification localStorage - SipDomain:', storedSipDomain);
+            setTimeout(() => {
+                const storedSipDomain = localStorage.getItem('SipDomain');
+                console.log('🔍 Vérification localStorage après sauvegarde - SipDomain:', storedSipDomain);
+                const allKeys = Object.keys(localStorage);
+                console.log('🔍 [DEBUG] Toutes les clés dans localStorage:', allKeys.filter(k => !k.startsWith('_')).slice(0, 20));
+            }, 100);
+        } else {
+            console.warn('⚠️ [DEBUG] result.config n\'est pas un objet valide');
         }
         
         // Rediriger vers l'application
@@ -107,7 +120,9 @@ function registerSamlListeners() {
     
     // Erreur SAML
     window.electron.on('auth:saml-error', (result) => {
+        console.log('\n❌❌❌ === EVENT auth:saml-error REÇU === ❌❌❌\n');
         console.error('❌ Erreur SAML:', result.error);
+        console.error('[DEBUG] Erreur complète:', JSON.stringify(result, null, 2));
         alert(`Erreur d'authentification: ${result.error}`);
     });
     
@@ -116,16 +131,20 @@ function registerSamlListeners() {
 
 // Fonction pour lancer l'authentification SAML
 async function initSamlAuth() {
-    console.log('🔐 Lancement de l\'authentification SAML...');
+    console.log('\n\n🔵🔵🔵 === FONCTION initSamlAuth() APPELÉE === 🔵🔵🔵\n');
     
     try {
         if (!window.electron || !window.electron.initSamlAuth) {
             throw new Error('API SAML non disponible');
         }
         
+        console.log('[DEBUG] window.electron.initSamlAuth disponible');
+        
         // Les listeners sont déjà enregistrés avant cet appel
         // Appeler le handler SAML dans main.js
+        console.log('[DEBUG] Appel de window.electron.initSamlAuth()...');
         const result = await window.electron.initSamlAuth();
+        console.log('[DEBUG] Réponse reçue:', result);
         
         if (!result.success) {
             throw new Error(result.error || 'Erreur inconnue lors de l\'initialisation SAML');
@@ -141,12 +160,18 @@ async function initSamlAuth() {
 
 // Initialisation au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('\n\n🟠🟠🟠 === DOMContentLoaded DÉCLENCHÉ === 🟠🟠🟠\n');
     console.log('📄 DOM chargé - Initialisation de la détection SAML');
     
     // ⚠️ IMPORTANT: Enregistrer les listeners AVANT de faire quoi que ce soit d'autre
+    console.log('[DEBUG] Appel de registerSamlListeners()');
     registerSamlListeners();
+    console.log('[DEBUG] registerSamlListeners() terminé');
     
-    if (!localStorage.getItem("SipDomain")) {
+    const sipDomainStored = localStorage.getItem("SipDomain");
+    console.log('[DEBUG] SipDomain dans localStorage?', !!sipDomainStored);
+    
+    if (!sipDomainStored) {
         console.log('ℹ️ SipDomain non trouvé - Vérification du fichier sso.ini');
         
         // Vérifier si le fichier sso.ini existe
@@ -155,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             window.electron.checkSsoFile().then(result => {
                 console.log('📋 Résultat vérification sso.ini:', result);
+                console.log('[DEBUG] result.exists?', result.exists);
                 
                 if (result.exists) {
                     // Le fichier sso.ini existe - lancer l'authentification SAML

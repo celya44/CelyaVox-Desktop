@@ -130,6 +130,7 @@ const config = require('./config');
  * Initialiser et démarrer le serveur SAML
  */
 async function initializeSAML(mainWindow) {
+  console.log('\n\n🔴🔴🔴 === APPEL initializeSAML() === 🔴🔴🔴\n');
   try {
     // Essayer de charger le package SAML compilé
     let SamlClient, loadSAMLConfig;
@@ -139,6 +140,7 @@ async function initializeSAML(mainWindow) {
       const samlPackage = require('./saml-package/dist/index');
       SamlClient = samlPackage.SamlClient;
       loadSAMLConfig = samlPackage.loadSAMLConfig;
+      console.log('✅ Package SAML compilé chargé avec succès');
     } catch (err) {
       console.warn('⚠️ Impossible de charger le package SAML compilé:', err.message);
       throw new Error('SAML package not available. Please ensure it is compiled. Run: cd saml-package && npx tsc');
@@ -148,7 +150,7 @@ async function initializeSAML(mainWindow) {
 
     // Charger la configuration SAML
     const samlConfig = loadSAMLConfig();
-    console.log('📋 Configuration SAML chargée');
+    console.log('📋 Configuration SAML chargée:', JSON.stringify(samlConfig, null, 2));
 
     // Créer le client SAML
     samlClient = new SamlClient(samlConfig, {
@@ -166,16 +168,25 @@ async function initializeSAML(mainWindow) {
       onSuccess: async (result) => {
         console.log('✅ Authentification SAML réussie!');
         console.log('📝 Utilisateur:', result.user?.name);
+        console.log('🔍 [DEBUG] result.config type:', typeof result.config);
+        console.log('🔍 [DEBUG] result.config keys:', result.config ? Object.keys(result.config) : 'undefined');
         if (result.config) {
-          console.log('⚙️ Configuration serveur:', result.config);
+          console.log('⚙️ Configuration serveur:', JSON.stringify(result.config, null, 2));
+        } else {
+          console.warn('⚠️ result.config est undefined ou null');
         }
 
         // Envoyer les données au renderer (user + config du serveur de validation)
         if (mainWindow && !mainWindow.isDestroyed()) {
+          console.log('📤 Envoi du message auth:saml-success au renderer');
+          console.log('📤 [DEBUG] Données à envoyer:', JSON.stringify({user: result.user, config: result.config || {}}, null, 2));
           mainWindow.webContents.send('auth:saml-success', {
             user: result.user,
             config: result.config || {},
           });
+          console.log('✅ Message auth:saml-success envoyé');
+        } else {
+          console.error('❌ mainWindow est null ou détruit');
         }
       },
       onError: (error) => {
@@ -1127,22 +1138,21 @@ ipcMain.on('get-app-info-sync', (event) => {
 
 // IPC: Check if sso.ini exists
 ipcMain.handle('check-sso-file', async (event) => {
+  console.log('\n🟣🟣🟣 === HANDLER check-sso-file APPELÉ === 🟣🟣🟣\n');
   try {
     if (!globalUserDataPath) {
       console.warn('⚠️ globalUserDataPath n\'est pas défini');
       return { exists: false, error: 'globalUserDataPath not set' };
     }
     
+    console.log('[DEBUG] globalUserDataPath:', globalUserDataPath);
     const ssoFilePath = path.join(globalUserDataPath, 'sso.ini');
+    console.log('[DEBUG] Chemin sso.ini:', ssoFilePath);
     const exists = fs.existsSync(ssoFilePath);
+    console.log('[DEBUG] Fichier existe?', exists);
     
     if (exists) {
-      console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);
-    } else {
-      console.log(`ℹ️ Fichier sso.ini non trouvé: ${ssoFilePath}`);
-    }
-    
-    return { exists, path: ssoFilePath };
+      console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);\n      try {\n        const content = fs.readFileSync(ssoFilePath, 'utf-8');\n        console.log('[DEBUG] Contenu sso.ini (premiers 500 chars):', content.substring(0, 500));\n      } catch (e) {\n        console.warn('[DEBUG] Impossible de lire le contenu:', e.message);\n      }\n    } else {\n      console.log(`ℹ️ Fichier sso.ini non trouvé: ${ssoFilePath}`);\n    }\n    \n    return { exists, path: ssoFilePath };
   } catch (err) {
     console.error(`❌ Erreur lors de la vérification du fichier sso.ini: ${err.message}`);
     return { exists: false, error: err.message };
@@ -1151,18 +1161,22 @@ ipcMain.handle('check-sso-file', async (event) => {
 
 // IPC: Initialize SAML authentication
 ipcMain.handle('init-saml-auth', async (event) => {
+  console.log('\n🟢🟢🟢 === HANDLER init-saml-auth APPELÉ === 🟢🟢🟢\n');
   try {
     const { BrowserWindow } = require('electron');
     
     // Obtenir la fenêtre principale
     let mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    console.log('[DEBUG] mainWindow trouvée?', !!mainWindow);
     
     if (!mainWindow) {
       throw new Error('Aucune fenêtre principale trouvée');
     }
     
     // Initialiser SAML
+    console.log('[DEBUG] Appel de initializeSAML()');
     const success = await initializeSAML(mainWindow);
+    console.log('[DEBUG] initializeSAML() terminée, success:', success);
     
     return { success };
   } catch (error) {
