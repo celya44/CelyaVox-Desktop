@@ -172,6 +172,86 @@
             loadRemoteApp();
         }
 
+        // Fonction pour lancer l'authentification SAML
+        async function initSamlAuth() {
+            console.log('🔐 Lancement de l\'authentification SAML...');
+            
+            try {
+                if (!window.electron || !window.electron.initSamlAuth) {
+                    throw new Error('API SAML non disponible');
+                }
+                
+                // Mettre à jour le message de chargement
+                document.querySelector('.loader-text').textContent = 'Authentification SAML...';
+                
+                // Appeler le handler SAML dans main.js
+                const result = await window.electron.initSamlAuth();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Erreur inconnue lors de l\'initialisation SAML');
+                }
+                
+                console.log('✅ Authentification SAML initialisée');
+                
+                // Écouter les événements d'authentification
+                if (window.electron && window.electron.on) {
+                    // Succès SAML - écouter le bon canal avec le nouvel objet result
+                    window.electron.on('auth:saml-success', (result) => {
+                        console.log('✅ Authentification SAML réussie!');
+                        console.log('👤 Utilisateur:', result.user?.name);
+                        
+                        // Sauvegarder les informations utilisateur
+                        if (result.user) {
+                            localStorage.setItem('SamlUser', JSON.stringify(result.user));
+                            console.log('✅ Utilisateur sauvegardé dans localStorage');
+                        }
+                        
+                        // Sauvegarder la configuration complète depuis l'API (41 paramètres)
+                        if (result.config && typeof result.config === 'object') {
+                            const configKeys = Object.keys(result.config);
+                            console.log(`📝 Sauvegarde de ${configKeys.length} paramètres de config dans localStorage...`);
+                            
+                            let successCount = 0;
+                            for (const [key, value] of Object.entries(result.config)) {
+                                const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+                                localStorage.setItem(key, stringValue);
+                                successCount++;
+                                
+                                // Log pour les clés importantes
+                                if (key === 'profileName' || key === 'SipDomain' || key === 'SipUsername' || key === 'SipPassword') {
+                                    console.log(`  ✅ ${key} = ${stringValue.substring(0, 50)}`);
+                                }
+                            }
+                            console.log(`✅ ${successCount} paramètres sauvegardés dans localStorage`);
+                            
+                            // Vérification : afficher quelques valeurs pour confirmation
+                            const storedSipDomain = localStorage.getItem('SipDomain');
+                            const storedProfileName = localStorage.getItem('profileName');
+                            console.log('🔍 Vérification localStorage:');
+                            console.log('  - profileName:', storedProfileName?.substring(0, 30));
+                            console.log('  - SipDomain:', storedSipDomain);
+                        }
+                        
+                        // Après authentification réussie, charger l'application
+                        document.querySelector('.loader-text').textContent = 'Chargement de l\'application...';
+                        setTimeout(() => loadRemoteApp(), 2000);
+                    });
+                    
+                    // Erreur SAML
+                    window.electron.on('auth:saml-error', (result) => {
+                        console.error('❌ Erreur SAML:', result.error);
+                        alert(`Erreur d'authentification SAML: ${result.error}`);
+                        showError();
+                    });
+                }
+                
+            } catch (err) {
+                console.error('❌ Erreur lors de l\'initialisation SAML:', err);
+                alert(`Erreur SAML: ${err.message}`);
+                showError();
+            }
+        }
+
         function loadRemoteApp() {
             if (!serverUrl) {
                 console.error('❌ Pas de serverUrl disponible. Config reçue?', configReceived);
@@ -204,6 +284,36 @@
                 });
         }
 
+        // Vérifier si SAML doit être utilisé avant de charger l'app distante
+        async function checkAndInitSSO() {
+            try {
+                // Vérifier si sso.ini existe
+                if (window.electron && window.electron.checkSsoFile) {
+                    console.log('🔍 Vérification du fichier sso.ini...');
+                    const result = await window.electron.checkSsoFile();
+                    
+                    console.log('📋 Résultat vérification sso.ini:', result);
+                    
+                    if (result.exists) {
+                        // Le fichier sso.ini existe - lancer l'authentification SAML
+                        console.log('✅ Fichier sso.ini trouvé - Lancement SAML');
+                        await initSamlAuth();
+                        return; // Ne pas charger l'app distante ici
+                    } else {
+                        console.log('ℹ️ Fichier sso.ini non trouvé - Chargement direct de l\'application');
+                        loadRemoteApp();
+                    }
+                } else {
+                    console.warn('⚠️ API checkSsoFile non disponible - Chargement direct');
+                    loadRemoteApp();
+                }
+            } catch (err) {
+                console.error('❌ Erreur lors de la vérification SSO:', err);
+                // En cas d'erreur, charger l'app directement
+                loadRemoteApp();
+            }
+        }
+
         // Recevoir la configuration du preload
         window.addEventListener('DOMContentLoaded', () => {
             console.log('⏳ DOMContentLoaded - attendant configuration via IPC...');
@@ -216,7 +326,8 @@
                         serverUrl = config.serverUrl;
                         timeout = config.timeout || timeout;
                         configReceived = true;
-                        loadRemoteApp();
+                        // Vérifier SSO et charger l'app
+                        checkAndInitSSO();
                     }
                 });
             }
@@ -227,7 +338,8 @@
                 serverUrl = window.celyavoxConfig.serverUrl;
                 timeout = window.celyavoxConfig.timeout || timeout;
                 configReceived = true;
-                loadRemoteApp();
+                // Vérifier SSO et charger l'app
+                checkAndInitSSO();
             } else {
                 console.log('⏳ celyavoxConfig.serverUrl est null, attendant IPC...');
                 // Timeout de 3 secondes pour éviter une attente infinie

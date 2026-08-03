@@ -17,9 +17,14 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, Notification, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// Variable globale pour stocker le chemin userData
+let globalUserDataPath = null;
+let samlClient = null;
+let authWindow = null;
 
 // ============================================================
 // Initialiser le fichier config.ini
@@ -108,11 +113,128 @@ function initializeConfigFile() {
     console.log(`✅ Fichier config.ini existant utilisé: ${userConfigPath}`);
   }
   
+  // Stocker le chemin userData dans une variable globale pour accès futur
+  globalUserDataPath = userDataPath;
+  
   // Passer le chemin via une variable d'environnement pour config.js
   process.env.CELYAVOX_USER_CONFIG_PATH = userConfigPath;
 }
 
 const config = require('./config');
+
+// ============================================================
+// Module SAML - Gestion de l'authentification SAML
+// ============================================================
+
+/**
+ * Initialiser et démarrer le serveur SAML
+ */
+async function initializeSAML(mainWindow) {
+  try {
+    // Essayer de charger le package SAML compilé
+    let SamlClient, loadSAMLConfig;
+    
+    try {
+      // Charger depuis le package compilé en JavaScript
+      const samlPackage = require('./saml-package/dist/index');
+      SamlClient = samlPackage.SamlClient;
+      loadSAMLConfig = samlPackage.loadSAMLConfig;
+    } catch (err) {
+      console.warn('⚠️ Impossible de charger le package SAML compilé:', err.message);
+      throw new Error('SAML package not available. Please ensure it is compiled. Run: cd saml-package && npx tsc');
+    }
+
+    console.log('🔐 Initialisation du client SAML...');
+
+    // Charger la configuration SAML
+    const samlConfig = loadSAMLConfig();
+    console.log('📋 Configuration SAML chargée');
+
+    // Créer le client SAML
+    samlClient = new SamlClient(samlConfig, {
+      port: 3001,
+      autoLaunch: true,
+      closeWindowOnSuccess: true,
+    });
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      samlClient.setMainWindow(mainWindow);
+    }
+
+    // Initialiser avec les callbacks
+    await samlClient.initialize({
+      onSuccess: async (result) => {
+        console.log('✅ Authentification SAML réussie!');
+        console.log('📝 Utilisateur:', result.user?.name);
+        if (result.config) {
+          console.log('⚙️ Configuration serveur:', result.config);
+        }
+
+        // Envoyer les données au renderer (user + config du serveur de validation)
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('saml:authenticated', {
+            user: result.user,
+            config: result.config || {},
+          });
+        }
+      },
+      onError: (error) => {
+        console.error('❌ Erreur SAML:', error.message);
+
+        // Envoyer l'erreur au renderer
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('saml:error', { error: error.message });
+        }
+      },
+    });
+
+    // Démarrer le serveur SAML
+    await samlClient.start();
+    console.log('🚀 Serveur SAML démarré');
+
+    // Ouvrir le navigateur avec l'URL de login
+    const loginURL = samlClient.getLoginURL();
+    console.log(`🌐 Ouverture URL SAML: ${loginURL}`);
+    
+    try {
+      await shell.openExternal(loginURL);
+      console.log(`✅ Navigateur ouvert avec succès: ${loginURL}`);
+    } catch (err) {
+      console.error(`❌ Erreur lors de l'ouverture du navigateur: ${err.message}`);
+      console.error(`   Essai d'ouverture manuelle de: ${loginURL}`);
+      // Fallback: essayer directement
+      shell.openExternal(loginURL).catch(fallbackErr => {
+        console.error(`❌ Fallback échoué aussi: ${fallbackErr.message}`);
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation SAML:', error.message);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('saml:error', { 
+        error: `Erreur SAML: ${error.message}`,
+        details: error.message
+      });
+    }
+    return false;
+  }
+}
+
+/**
+ * Arrêter le serveur SAML
+ */
+async function stopSAML() {
+  if (samlClient) {
+    try {
+      await samlClient.stop();
+      console.log('🛑 Serveur SAML arrêté');
+    } catch (error) {
+      console.error('⚠️ Erreur lors de l\'arrêt SAML:', error.message);
+    }
+    samlClient = null;
+  }
+}
 
 // Log de debug pour vérifier les chemins
 console.log(`
@@ -1003,6 +1125,55 @@ ipcMain.on('get-app-info-sync', (event) => {
   };
 });
 
+// IPC: Check if sso.ini exists
+ipcMain.handle('check-sso-file', async (event) => {
+  try {
+    if (!globalUserDataPath) {
+      console.warn('⚠️ globalUserDataPath n\'est pas défini');
+      return { exists: false, error: 'globalUserDataPath not set' };
+    }
+    
+    const ssoFilePath = path.join(globalUserDataPath, 'sso.ini');
+    const exists = fs.existsSync(ssoFilePath);
+    
+    if (exists) {
+      console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);
+    } else {
+      console.log(`ℹ️ Fichier sso.ini non trouvé: ${ssoFilePath}`);
+    }
+    
+    return { exists, path: ssoFilePath };
+  } catch (err) {
+    console.error(`❌ Erreur lors de la vérification du fichier sso.ini: ${err.message}`);
+    return { exists: false, error: err.message };
+  }
+});
+
+// IPC: Initialize SAML authentication
+ipcMain.handle('init-saml-auth', async (event) => {
+  try {
+    const { BrowserWindow } = require('electron');
+    
+    // Obtenir la fenêtre principale
+    let mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    
+    if (!mainWindow) {
+      throw new Error('Aucune fenêtre principale trouvée');
+    }
+    
+    // Initialiser SAML
+    const success = await initializeSAML(mainWindow);
+    
+    return { success };
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation SAML:', error.message);
+    return { 
+      success: false, 
+      error: error.message 
+    };
+  }
+});
+
 // ----------------------
 // App ready
 // ----------------------
@@ -1259,5 +1430,9 @@ app.on('window-all-closed', (e) => {
   if (process.platform !== 'darwin') e.preventDefault();
 });
 
-app.on('before-quit', () => (app.isQuiting = true));
+app.on('before-quit', async () => {
+  app.isQuiting = true;
+  // Arrêter le serveur SAML avant de quitter
+  await stopSAML();
+});
 

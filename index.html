@@ -54,19 +54,159 @@
         alert("Erreur lors du chargement du XML : " + err.message);
         console.error(err);
     }
-}          
-              if (!localStorage.getItem("SipDomain")) {
+}
+
+// Enregistrer les listeners SAML avant de lancer l'authentification
+function registerSamlListeners() {
+    console.log('📌 Enregistrement des listeners SAML...');
+    
+    if (!window.electron || !window.electron.on) {
+        console.warn('⚠️ window.electron.on non disponible');
+        return;
+    }
+    
+    // Succès SAML (canal auth:saml-success)
+    window.electron.on('auth:saml-success', (result) => {
+        console.log('✅ Authentification SAML réussie!');
+        console.log('👤 Utilisateur:', result.user?.name);
+        console.log('⚙️ Configuration serveur - nombre d\'entrées:', Object.keys(result.config || {}).length);
+        
+        // Sauvegarder les informations utilisateur
+        if (result.user) {
+            localStorage.setItem('SamlUser', JSON.stringify(result.user));
+            console.log('✅ Utilisateur sauvegardé dans localStorage');
+        }
+        
+        // Sauvegarder la configuration depuis l'API dans localStorage
+        if (result.config && typeof result.config === 'object') {
+            const configKeys = Object.keys(result.config);
+            console.log(`📝 Sauvegarde de ${configKeys.length} paramètres de config dans localStorage...`);
+            
+            let successCount = 0;
+            for (const [key, value] of Object.entries(result.config)) {
+                const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+                localStorage.setItem(key, stringValue);
+                successCount++;
+                
+                if (key === 'profileName' || key === 'SipDomain' || key === 'SipUsername' || key === 'SipPassword') {
+                    console.log(`  ✅ ${key} = ${stringValue.substring(0, 50)}`);
+                }
+            }
+            console.log(`✅ ${successCount} paramètres sauvegardés dans localStorage`);
+            
+            // Vérifier que localStorage a reçu les données
+            const storedSipDomain = localStorage.getItem('SipDomain');
+            console.log('🔍 Vérification localStorage - SipDomain:', storedSipDomain);
+        }
+        
+        // Rediriger vers l'application
+        alert(`Bienvenue ${result.user?.name || 'Utilisateur'}!`);
+        document.getElementById('input-container').style.display = 'none';
+        // Vous pouvez ici charger l'application distante
+    });
+    
+    // Erreur SAML
+    window.electron.on('auth:saml-error', (result) => {
+        console.error('❌ Erreur SAML:', result.error);
+        alert(`Erreur d'authentification: ${result.error}`);
+    });
+    
+    console.log('✅ Listeners SAML enregistrés');
+}
+
+// Fonction pour lancer l'authentification SAML
+async function initSamlAuth() {
+    console.log('🔐 Lancement de l\'authentification SAML...');
+    
+    try {
+        if (!window.electron || !window.electron.initSamlAuth) {
+            throw new Error('API SAML non disponible');
+        }
+        
+        // Les listeners sont déjà enregistrés avant cet appel
+        // Appeler le handler SAML dans main.js
+        const result = await window.electron.initSamlAuth();
+        
+        if (!result.success) {
+            throw new Error(result.error || 'Erreur inconnue lors de l\'initialisation SAML');
+        }
+        
+        console.log('✅ Authentification SAML initialisée, en attente de l\'événement IPC...');
+        
+    } catch (err) {
+        console.error('❌ Erreur lors de l\'initialisation SAML:', err);
+        alert(`Erreur SAML: ${err.message}`);
+    }
+}
+
+// Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('📄 DOM chargé - Initialisation de la détection SAML');
+    
+    // ⚠️ IMPORTANT: Enregistrer les listeners AVANT de faire quoi que ce soit d'autre
+    registerSamlListeners();
+    
+    if (!localStorage.getItem("SipDomain")) {
+        console.log('ℹ️ SipDomain non trouvé - Vérification du fichier sso.ini');
+        
+        // Vérifier si le fichier sso.ini existe
+        if (window.electron && window.electron.checkSsoFile) {
+            console.log('✅ API checkSsoFile disponible');
+            
+            window.electron.checkSsoFile().then(result => {
+                console.log('📋 Résultat vérification sso.ini:', result);
+                
+                if (result.exists) {
+                    // Le fichier sso.ini existe - lancer l'authentification SAML
+                    console.log('✅ Fichier sso.ini trouvé - Lancement SAML');
+                    initSamlAuth();
+                } else {
+                    // Le fichier sso.ini n'existe pas - afficher le formulaire
+                    console.log('ℹ️ Fichier sso.ini non trouvé - Affichage du formulaire');
+                    document.getElementById('input-container').style.display = 'block';
+                    document.getElementById("saveBtn").addEventListener("click", () => {
+                        const url = document.getElementById("sipInput").value.trim();
+                        if (url) {
+                            fetchAndStoreXML(url);
+                            document.getElementById("input-container").style.display = "none";
+                        } else {
+                            alert("Veuillez entrer une URL valide.");
+                        }
+                    });
+                }
+            }).catch(err => {
+                console.error('❌ Erreur lors de la vérification du fichier sso.ini:', err);
+                // En cas d'erreur, afficher le formulaire
+                console.log('⚠️ Fallback: Affichage du formulaire');
                 document.getElementById('input-container').style.display = 'block';
                 document.getElementById("saveBtn").addEventListener("click", () => {
-        const url = document.getElementById("sipInput").value.trim();
-        if (url) {
-            fetchAndStoreXML(url);
-            document.getElementById("input-container").style.display = "none";
+                    const url = document.getElementById("sipInput").value.trim();
+                    if (url) {
+                        fetchAndStoreXML(url);
+                        document.getElementById("input-container").style.display = "none";
+                    } else {
+                        alert("Veuillez entrer une URL valide.");
+                    }
+                });
+            });
         } else {
-            alert("Veuillez entrer une URL valide.");
+            // window.electron non disponible - afficher le formulaire
+            console.warn('⚠️ API window.electron non disponible');
+            document.getElementById('input-container').style.display = 'block';
+            document.getElementById("saveBtn").addEventListener("click", () => {
+                const url = document.getElementById("sipInput").value.trim();
+                if (url) {
+                    fetchAndStoreXML(url);
+                    document.getElementById("input-container").style.display = "none";
+                } else {
+                    alert("Veuillez entrer une URL valide.");
+                }
+            });
         }
-    });
-              }
+    } else {
+        console.log('✅ SipDomain trouvé dans localStorage');
+    }
+});
         </script>
 
         <!-- Cache -->

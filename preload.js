@@ -43,7 +43,11 @@ contextBridge.exposeInMainWorld('electron', {
   // Notify hangup to main process
   notifyHangup: (callerInfo) => ipcRenderer.send('call-hangup', { callerName: callerInfo || 'Correspondant' }),
   // Get app info
-  getAppInfo: () => ipcRenderer.invoke('get-app-info')
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+  // Check if sso.ini file exists
+  checkSsoFile: () => ipcRenderer.invoke('check-sso-file'),
+  // Initialize SAML authentication
+  initSamlAuth: () => ipcRenderer.invoke('init-saml-auth')
 })
 
 // Expose CelyaVox config for loading page
