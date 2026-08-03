@@ -302,12 +302,13 @@
                         console.log(`📝 Config à passer: ${key} = ${value.substring(0, 50)}`);
                     }
                     
-                    // Si la config existe, l'ajouter à l'URL en base64
+                    // Si la config existe, l'ajouter à l'URL en hash (pas de limite de taille)
                     if (Object.keys(configData).length > 0) {
                         const configString = JSON.stringify(configData);
                         const configBase64 = btoa(configString);
-                        finalUrl += (serverUrl.includes('?') ? '&' : '?') + 'celyavox_config=' + encodeURIComponent(configBase64);
-                        console.log('✅ Configuration SAML encodée en base64');
+                        // Utiliser le hash au lieu de GET pour éviter les limites de taille d'URL
+                        finalUrl += '#celyavox_config=' + encodeURIComponent(configBase64);
+                        console.log('✅ Configuration SAML encodée en base64 (hash)');
                         console.log('[DEBUG] Taille config:', configBase64.length, 'bytes');
                         console.log('[DEBUG] Nombre de paramètres:', Object.keys(configData).length);
                     }
