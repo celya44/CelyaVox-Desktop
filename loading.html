@@ -249,6 +249,27 @@
                             
                             // Afficher les cookies pour debug
                             console.log('🍪 Cookies définis:', document.cookie);
+                            
+                            // ============================================================
+                            // NOUVEAU: Sauvegarder aussi dans userData via IPC
+                            // ============================================================
+                            console.log('💾 Sauvegarde des données SAML via IPC vers userData...');
+                            if (window.electron && window.electron.saveAuthSession) {
+                              window.electron.saveAuthSession({
+                                user: result.user,
+                                config: result.config
+                              }).then(saveResult => {
+                                if (saveResult.success) {
+                                  console.log('✅ Données SAML persistées dans userData');
+                                } else {
+                                  console.warn('⚠️ Erreur lors de la sauvegarde IPC:', saveResult.error);
+                                }
+                              }).catch(err => {
+                                console.error('❌ Erreur lors de l\'appel IPC saveAuthSession:', err.message);
+                              });
+                            } else {
+                              console.warn('⚠️ window.electron.saveAuthSession non disponible');
+                            }
                         }
                         
                         // Après authentification réussie, charger l'application
@@ -339,6 +360,8 @@
                     try {
                         const sessionResult = await window.electron.getAuthSession();
                         
+                        console.log('🔍 [DEBUG] sessionResult:', JSON.stringify(sessionResult, null, 2));
+                        
                         if (sessionResult.exists && sessionResult.user && sessionResult.config) {
                             console.log('✅ Données SAML trouvées! Restauration dans localStorage...');
                             
@@ -358,11 +381,17 @@
                             loadRemoteApp();
                             return;
                         } else {
-                            console.log('ℹ️ Pas de données SAML persistées');
+                            console.log('ℹ️ Pas de données SAML persistées trouvées');
+                            console.log('   exists:', sessionResult.exists);
+                            console.log('   user:', !!sessionResult.user);
+                            console.log('   config:', !!sessionResult.config);
                         }
                     } catch (err) {
                         console.warn('⚠️ Erreur lors de la vérification des données persistées:', err.message);
+                        console.error('[DEBUG] Erreur complète:', err);
                     }
+                } else {
+                    console.warn('⚠️ window.electron.getAuthSession non disponible');
                 }
                 
                 // ============================================================

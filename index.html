@@ -149,27 +149,6 @@ function registerSamlListeners() {
                 const allKeys = Object.keys(localStorage);
                 console.log('🔍 [DEBUG] Toutes les clés dans localStorage:', allKeys.filter(k => !k.startsWith('_')).slice(0, 20));
             }, 100);
-            
-            // ============================================================
-            // NOUVEAU: Sauvegarder aussi dans userData via IPC pour persistance
-            // ============================================================
-            console.log('💾 Sauvegarde des données SAML via IPC vers userData...');
-            if (window.electron && window.electron.saveAuthSession) {
-              window.electron.saveAuthSession({
-                user: result.user,
-                config: result.config
-              }).then(response => {
-                if (response.success) {
-                  console.log('✅ Données SAML persistées dans userData');
-                } else {
-                  console.warn('⚠️ Erreur lors de la sauvegarde IPC:', response.error);
-                }
-              }).catch(err => {
-                console.error('❌ Erreur lors de l\'appel IPC saveAuthSession:', err.message);
-              });
-            } else {
-              console.warn('⚠️ window.electron.saveAuthSession non disponible');
-            }
         } else {
             console.warn('⚠️ [DEBUG] result.config n\'est pas un objet valide');
         }
