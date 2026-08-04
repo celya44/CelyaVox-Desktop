@@ -50,7 +50,7 @@ saml-package/
 
 #### `src/config.ts` (100+ lines)
 **Configuration file loading and management**
-- `loadSAMLConfig()` - Load from `~/.config/celyavox/sso.ini`
+- `loadSAMLConfig()` - Load from `~/.config/CelyaVox/sso.ini`
 - `getConfigPath()` - Get config file path
 - Platform-specific directory handling (Windows, macOS, Linux)
 - Automatic directory creation

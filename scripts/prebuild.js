@@ -66,19 +66,19 @@ try {
 
 // Modifier le productName selon l'environnement
 if (env === 'dev') {
-  packageJson.build.productName = 'celyavox-dev';
+  packageJson.build.productName = 'CelyaVox-dev';  // Dossier userData
   packageJson.build.appId = 'fr.celya.celyavox.dev';
   packageJson.build.linux.desktop.Name = 'CelyaVox Dev';
   
   // Ajouter le suffixe -dev à tous les artéfacts Linux
   packageJson.build.deb = packageJson.build.deb || {};
-  packageJson.build.deb.artifactName = 'celyavox-dev_${version}_${arch}.${ext}';
+  packageJson.build.deb.artifactName = 'celyavox-dev_${version}_${arch}.${ext}';  // Paquet Linux en minuscules
+  packageJson.build.deb.packageName = 'celyavox-dev';  // Nom du paquet en minuscules
   
   packageJson.build.rpm = packageJson.build.rpm || {};
   packageJson.build.rpm.artifactName = 'celyavox-dev-${version}.${arch}.${ext}';
+  packageJson.build.rpm.packageName = 'celyavox-dev';
   
-  // Ensure deb package metadata used by fpm/app-builder-lib
-  packageJson.build.deb.packageName = packageJson.build.productName;
   packageJson.build.deb.maintainer = `${packageJson.author.name} <${packageJson.author.email}>`;
   
   // Définir l'environnement par défaut pour l'exécutable
@@ -87,28 +87,31 @@ if (env === 'dev') {
   // AppImage utilise déjà le productName, donc OK
   
   console.log('✅ Mode DEV configuré');
-  console.log('   - Product Name: celyavox-dev');
+  console.log('   - Product Name: CelyaVox-dev');
   console.log('   - App ID: fr.celya.celyavox.dev');
   console.log('   - Artifacts: celyavox-dev-*');
   console.log('   - Server: https://freepbx17-dev.celya.fr/celyavox');
 } else {
-  packageJson.build.productName = 'celyavox';
+  packageJson.build.productName = 'CelyaVox';  // Dossier userData
   packageJson.build.appId = 'fr.celya.celyavox';
   packageJson.build.linux.desktop.Name = 'CelyaVox';
   
   // Nom standard pour prod
   if (packageJson.build.deb?.artifactName) delete packageJson.build.deb.artifactName;
   packageJson.build.deb = packageJson.build.deb || {};
-  // Ensure deb package metadata used by fpm/app-builder-lib
-  packageJson.build.deb.packageName = packageJson.build.productName;
-  packageJson.build.deb.maintainer = `${packageJson.author.name} <${packageJson.author.email}>`;
+  packageJson.build.deb.packageName = 'celyavox';  // Paquet Linux en minuscules
+  
   if (packageJson.build.rpm?.artifactName) delete packageJson.build.rpm.artifactName;
+  packageJson.build.rpm = packageJson.build.rpm || {};
+  packageJson.build.rpm.packageName = 'celyavox';  // RPM en minuscules
+  
+  packageJson.build.deb.maintainer = `${packageJson.author.name} <${packageJson.author.email}>`;
   
   // Définir l'environnement par défaut pour l'exécutable
   packageJson.config.environment = 'prod';
   
   console.log('✅ Mode PROD configuré');
-  console.log('   - Product Name: celyavox');
+  console.log('   - Product Name: CelyaVox');
   console.log('   - App ID: fr.celya.celyavox');
   console.log('   - Artifacts: celyavox-*');
   console.log('   - Server: https://celyavox.celya.fr/phone');

@@ -51,8 +51,8 @@ The SAML package is **complete and ready for use** in your new Electron applicat
 
 3. **Configure SAML:**
    ```bash
-   mkdir -p ~/.config/celyavox
-   cp /your/project/src/saml/examples/sso.ini.example ~/.config/celyavox/sso.ini
+   mkdir -p ~/.config/CelyaVox
+   cp /your/project/src/saml/examples/sso.ini.example ~/.config/CelyaVox/sso.ini
    # Edit with your IdP settings
    ```
 
@@ -159,14 +159,14 @@ And returns: `{ success: true, user, config }`
 - `src/types.ts` - TypeScript interfaces
 
 ### Configuration
-- `examples/sso.ini.example` → `~/.config/celyavox/sso.ini`
+- `examples/sso.ini.example` → `~/.config/CelyaVox/sso.ini`
 
 ### Documentation
 - Start with `README.md` then `INTEGRATION_GUIDE.md`
 
 ## 🔧 Configuration Template
 
-File: `~/.config/celyavox/sso.ini`
+File: `~/.config/CelyaVox/sso.ini`
 
 ```ini
 [SAML]
@@ -227,7 +227,7 @@ DEBUG=true npm run dev
 ## 🐛 Troubleshooting
 
 **"SAML configuration file not found"**
-- Run: `mkdir -p ~/.config/celyavox`
+- Run: `mkdir -p ~/.config/CelyaVox`
 - Copy: `cp examples/sso.ini.example ~/.config/celyavox/sso.ini`
 
 **"Certificate not found"**

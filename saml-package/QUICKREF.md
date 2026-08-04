@@ -45,7 +45,7 @@ npm install express passport passport-saml axios xml2js ini
 
 ### 3. Configure
 ```bash
-cp examples/sso.ini.example ~/.config/celyavox/sso.ini
+cp examples/sso.ini.example ~/.config/CelyaVox/sso.ini
 # Edit sso.ini with your IdP settings
 ```
 
@@ -86,7 +86,7 @@ new SamlClient(config, serverConfig?)
 
 ### Configuration Functions
 ```typescript
-loadSAMLConfig()             // Load from ~/.config/celyavox/sso.ini
+loadSAMLConfig()             // Load from ~/.config/CelyaVox/sso.ini
 getConfigPath()              // Get config file path
 ```
 

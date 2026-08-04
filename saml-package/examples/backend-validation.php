@@ -7,7 +7,7 @@
  * 
  * Setup:
  * 1. Place this file at your endpoint (e.g., /api/saml/validate)
- * 2. Configure in Electron's ~/.config/celyavox/sso.ini:
+ * 2. Configure in Electron's ~/.config/CelyaVox/sso.ini:
  *    validateUrl=https://your-api.com/api/saml/validate
  * 3. Install required libraries: composer require robrichards/xmlseclibs
  */

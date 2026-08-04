@@ -92,7 +92,7 @@ const config = {
   dev: {
     serverUrl: 'https://freepbx17-dev.celya.fr/celyavox',
     appName: 'CelyaVox Dev',
-    productName: 'celyavox-dev',
+    productName: 'CelyaVox-dev',
     appId: 'fr.celya.celyavox.dev',
     window: {
       width: 1280,
@@ -112,7 +112,7 @@ const config = {
   prod: {
     serverUrl: 'https://celyavox.celya.fr/phone',
     appName: 'CelyaVox',
-    productName: 'celyavox',
+    productName: 'CelyaVox',
     appId: 'fr.celya.celyavox',
     window: {
       width: 1280,

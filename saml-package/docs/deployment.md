@@ -146,13 +146,13 @@ npm install --save-dev @types/express @types/passport @types/node
 
 ```bash
 # Create config directory
-mkdir -p ~/.config/celyavox
+mkdir -p ~/.config/CelyaVox
 
 # Copy example
-cp src/saml/examples/sso.ini.example ~/.config/celyavox/sso.ini
+cp src/saml/examples/sso.ini.example ~/.config/CelyaVox/sso.ini
 
 # Edit with your IdP settings
-nano ~/.config/celyavox/sso.ini
+nano ~/.config/CelyaVox/sso.ini
 ```
 
 ### Step 4: Integrate in main.ts
@@ -179,7 +179,7 @@ app.on('ready', async () => {
 
 ```bash
 # Never commit configuration files
-echo "~/.config/celyavox/sso.ini" >> .gitignore
+echo "~/.config/CelyaVox/sso.ini" >> .gitignore
 
 # Certificates
 echo "*.pem" >> .gitignore

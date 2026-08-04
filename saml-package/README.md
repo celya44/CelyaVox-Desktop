@@ -51,7 +51,7 @@ npm install --save-dev @types/express @types/passport @types/node
 
 ### 3. Configure SAML
 
-Create `~/.config/celyavox/sso.ini`:
+Create `~/.config/CelyaVox/sso.ini`:
 
 ```ini
 [SAML]

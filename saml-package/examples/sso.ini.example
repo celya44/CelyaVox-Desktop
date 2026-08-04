@@ -1,5 +1,5 @@
 # SAML Configuration Example
-# Copy this file to ~/.config/celyavox/sso.ini and configure it with your IdP settings
+# Copy this file to ~/.config/CelyaVox/sso.ini and configure it with your IdP settings
 
 [SAML]
 # Option 1: Automatic metadata discovery (RECOMMENDED)

@@ -19,7 +19,7 @@ import { SamlClient, loadSAMLConfig, logger } from './saml/src';
 // CONFIGURATION
 // ============================================================================
 
-// Configure validateUrl in ~/.config/celyavox/sso.ini
+// Configure validateUrl in ~/.config/CelyaVox/sso.ini
 // 
 // [SAML]
 // metadataUrl=https://your-idp.com/metadata.xml

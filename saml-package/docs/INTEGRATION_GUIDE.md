@@ -26,7 +26,7 @@ npm install --save-dev @types/express @types/passport @types/node
 
 ### 3. Configurer sso.ini
 
-Créez `~/.config/celyavox/sso.ini` avec la configuration :
+Créez `~/.config/CelyaVox/sso.ini` avec la configuration :
 
 ```ini
 [SAML]
@@ -315,7 +315,7 @@ Et retourner une réponse XML :
 - Vérifiez les chemins : les chemins relatifs sont résolusMaintenant par rapport au répertoire de travail
 
 ### "SAML configuration file not found"
-- Vérifiez que `~/.config/celyavox/sso.ini` existe
+- Vérifiez que `~/.config/CelyaVox/sso.ini` existe
 - Copiez `sso.ini.example` si nécessaire
 
 ### Timeouts lors de la récupération des métadonnées

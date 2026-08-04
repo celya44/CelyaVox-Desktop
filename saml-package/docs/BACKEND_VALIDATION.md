@@ -37,7 +37,7 @@ La **validation backend** permet à votre serveur de valider les assertions SAML
 
 ## Configuration
 
-### 1. Dans `~/.config/celyavox/sso.ini`
+### 1. Dans `~/.config/CelyaVox/sso.ini`
 
 ```ini
 [SAML]

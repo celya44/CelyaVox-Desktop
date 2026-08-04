@@ -69,8 +69,8 @@ cp -r saml-package /your/project/src/saml
 npm install express passport passport-saml axios xml2js ini
 
 # 3. Configure (< 5 min)
-mkdir -p ~/.config/celyavox
-cp examples/sso.ini.example ~/.config/celyavox/sso.ini
+mkdir -p ~/.config/CelyaVox
+cp examples/sso.ini.example ~/.config/CelyaVox/sso.ini
 # Edit with your IdP details
 
 # 4. Integrate (< 10 min)

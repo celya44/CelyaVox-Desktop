@@ -9,14 +9,14 @@ import { SAMLConfig } from './types';
 
 /**
  * Get config directory based on OS conventions
- * Linux: ~/.config/celyavox (or ~/.config/celyavox-dev if APP_ENV=dev)
- * macOS: ~/Library/Application Support/celyavox
- * Windows: C:\Users\<user>\AppData\Roaming\celyavox
+ * Linux: ~/.config/CelyaVox (or ~/.config/CelyaVox-dev if APP_ENV=dev)
+ * macOS: ~/Library/Application Support/CelyaVox
+ * Windows: C:\Users\<user>\AppData\Roaming\CelyaVox
  */
 function getConfigDirectory(): string {
   const platform = process.platform;
   const appEnv = process.env.APP_ENV || 'prod';
-  const appName = appEnv === 'dev' ? 'celyavox-dev' : 'celyavox';
+  const appName = appEnv === 'dev' ? 'celyavox-dev' : 'CelyaVox';
   
   let configDir: string;
   

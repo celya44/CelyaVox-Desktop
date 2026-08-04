@@ -59,7 +59,7 @@
     "icon-gen": "^5.0.0"
   },
   "build": {
-    "productName": "celyavox-dev",
+    "productName": "CelyaVox-dev",
     "appId": "fr.celya.celyavox.dev",
     "protocols": [
       {
