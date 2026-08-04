@@ -30,9 +30,15 @@ try {
   // Vérifier si les dépendances du saml-package sont installées
   if (!fs.existsSync(samlNodeModulesPath)) {
     console.log('📦 Installation des dépendances du saml-package...');
-    execSync('cd ' + samlPackagePath + ' && npm install', { 
+    
+    // Déterminer le shell approprié selon la plateforme
+    const isWindows = process.platform === 'win32';
+    const shell = isWindows ? 'cmd' : true;  // true = shell par défaut
+    
+    execSync('npm install', { 
+      cwd: samlPackagePath,
       stdio: 'inherit',
-      shell: '/bin/bash'
+      shell: shell
     });
     console.log('✅ Dépendances du saml-package installées\n');
   }
@@ -42,9 +48,13 @@ try {
   }
   
   // Exécuter tsc dans le répertoire saml-package
-  execSync('cd ' + samlPackagePath + ' && npx tsc', { 
+  const isWindows = process.platform === 'win32';
+  const shell = isWindows ? 'cmd' : true;  // true = shell par défaut
+  
+  execSync('npx tsc', { 
+    cwd: samlPackagePath,
     stdio: 'inherit',
-    shell: '/bin/bash'
+    shell: shell
   });
   
   console.log('✅ Compilation du saml-package réussie\n');
