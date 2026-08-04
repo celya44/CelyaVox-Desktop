@@ -78,6 +78,7 @@
       "enable-text-selection.css",
       "config.js",
       "resources/**",
+      "saml-package/dist/**",
       "package.json",
       "assets/icons/**",
       "!**/*.map",
