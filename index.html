@@ -56,7 +56,48 @@
     }
 }
 
-// Enregistrer les listeners SAML avant de lancer l'authentification
+// ============================================================
+// Réinitialisation complète de la configuration
+// Cette fonction efface localStorage ET les données persistées
+// ============================================================
+async function resetConfigurationComplete() {
+    console.log('🔄 Réinitialisation complète de la configuration...');
+    
+    try {
+        // Effacer le localStorage local
+        localStorage.clear();
+        console.log('✅ localStorage local effacé');
+        
+        // Effacer les données persistées SAML via IPC (données dans userData)
+        if (window.electron && window.electron.clearAuthSession) {
+            const result = await window.electron.clearAuthSession();
+            if (result.success) {
+                console.log('✅ Session SAML persistée effacée');
+            } else {
+                console.warn('⚠️ Erreur lors de l\'effacement de la session:', result.error);
+            }
+        } else {
+            console.warn('⚠️ window.electron.clearAuthSession non disponible');
+        }
+        
+        console.log('✅ Réinitialisation complète effectuée');
+        
+        // Recharger la page pour revenir à l'écran initial
+        alert('Configuration réinitialisée. L\'application va recharger...');
+        window.location.reload();
+        
+        return { success: true };
+    } catch (err) {
+        console.error('❌ Erreur lors de la réinitialisation:', err.message);
+        alert('Erreur lors de la réinitialisation: ' + err.message);
+        return { success: false, error: err.message };
+    }
+}
+
+// Alias courts pour appels depuis l'app Phone
+window.resetConfig = resetConfigurationComplete;
+window.reinitializerConfiguration = resetConfigurationComplete;
+
 function registerSamlListeners() {
     console.log('📌 Enregistrement des listeners SAML...');
     
@@ -108,6 +149,27 @@ function registerSamlListeners() {
                 const allKeys = Object.keys(localStorage);
                 console.log('🔍 [DEBUG] Toutes les clés dans localStorage:', allKeys.filter(k => !k.startsWith('_')).slice(0, 20));
             }, 100);
+            
+            // ============================================================
+            // NOUVEAU: Sauvegarder aussi dans userData via IPC pour persistance
+            // ============================================================
+            console.log('💾 Sauvegarde des données SAML via IPC vers userData...');
+            if (window.electron && window.electron.saveAuthSession) {
+              window.electron.saveAuthSession({
+                user: result.user,
+                config: result.config
+              }).then(response => {
+                if (response.success) {
+                  console.log('✅ Données SAML persistées dans userData');
+                } else {
+                  console.warn('⚠️ Erreur lors de la sauvegarde IPC:', response.error);
+                }
+              }).catch(err => {
+                console.error('❌ Erreur lors de l\'appel IPC saveAuthSession:', err.message);
+              });
+            } else {
+              console.warn('⚠️ window.electron.saveAuthSession non disponible');
+            }
         } else {
             console.warn('⚠️ [DEBUG] result.config n\'est pas un objet valide');
         }
@@ -174,8 +236,52 @@ document.addEventListener('DOMContentLoaded', () => {
     registerSamlListeners();
     console.log('[DEBUG] registerSamlListeners() terminé');
     
+    // ============================================================
+    // Restaurer la configuration passée en hash par loading.html
+    // (cf. problème d'isolation du localStorage par origin)
+    // ============================================================
+    function restoreConfigFromHash() {
+      const hash = window.location.hash;
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const configBase64 = hashParams.get('celyavox_config');
+      
+      if (configBase64) {
+        try {
+          const configString = decodeURIComponent(atob(configBase64));
+          const configData = JSON.parse(configString);
+          console.log('🔄 [DEBUG] Configuration trouvée dans le hash');
+          console.log('🔄 [DEBUG] Nombre de paramètres à restaurer:', Object.keys(configData).length);
+          
+          // Restaurer chaque paramètre dans le localStorage du nouvel origin
+          for (const [key, value] of Object.entries(configData)) {
+            localStorage.setItem(key, value);
+            console.log(`  ✅ Restauré: ${key}`);
+          }
+          
+          console.log('✅ Configuration SAML restaurée depuis le hash');
+          
+          // Nettoyer le hash pour éviter les confusions
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+          
+          return true;
+        } catch (err) {
+          console.error('❌ Erreur lors du décodage de la config depuis le hash:', err.message);
+          return false;
+        }
+      } else {
+        console.log('[DEBUG] Pas de celyavox_config dans le hash');
+        return false;
+      }
+    }
+    
+    // Restaurer la config depuis le hash AVANT de vérifier le localStorage
+    const configRestored = restoreConfigFromHash();
+    
     const sipDomainStored = localStorage.getItem("SipDomain");
     console.log('[DEBUG] SipDomain dans localStorage?', !!sipDomainStored);
+    if (configRestored) {
+      console.log('[DEBUG] Configuration a été restaurée depuis le hash');
+    }
     
     if (!sipDomainStored) {
         console.log('ℹ️ SipDomain non trouvé - Vérification du fichier sso.ini');

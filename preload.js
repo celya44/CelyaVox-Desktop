@@ -50,6 +50,30 @@ contextBridge.exposeInMainWorld('electron', {
   checkSsoFile: () => ipcRenderer.invoke('check-sso-file'),
   // Initialize SAML authentication
   initSamlAuth: () => ipcRenderer.invoke('init-saml-auth'),
+  // Auth session management
+  saveAuthSession: (data) => ipcRenderer.invoke('auth:save-session', data),
+  getAuthSession: () => ipcRenderer.invoke('auth:get-session'),
+  clearAuthSession: () => ipcRenderer.invoke('auth:clear-session'),
+  // Complete logout (clear both localStorage and persisted session)
+  completeLogout: async () => {
+    console.log('🚪 Début du logout complet...');
+    // Effacer le localStorage local
+    localStorage.clear();
+    console.log('✅ localStorage effacé');
+    
+    // Effacer les données persistées via IPC
+    try {
+      const result = await ipcRenderer.invoke('auth:clear-session');
+      if (result.success) {
+        console.log('✅ Session SAML effacée');
+      }
+    } catch (err) {
+      console.error('❌ Erreur lors de l\'effacement de la session:', err.message);
+    }
+    
+    console.log('✅ Logout complet effectué');
+    return { success: true };
+  },
   // Signal that renderer is ready for IPC messages
   ready: () => {
     console.log('[Preload] 📢 Signaling renderer readiness to main process');

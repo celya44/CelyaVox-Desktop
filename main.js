@@ -120,6 +120,101 @@ function initializeConfigFile() {
   process.env.CELYAVOX_USER_CONFIG_PATH = userConfigPath;
 }
 
+// ============================================================
+// Gestion de la session d'authentification (IPC handlers)
+// ============================================================
+
+/**
+ * Chemin du fichier de session SAML
+ * Déterminé dynamiquement selon l'environnement (dev/prod)
+ */
+let sessionFilePath = null;
+
+function getSessionFilePath() {
+  if (sessionFilePath) return sessionFilePath;
+  
+  const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
+  const userDataPath = isDev 
+    ? path.join(app.getPath('userData'), '..', 'celyavox-dev')
+    : app.getPath('userData');
+  
+  sessionFilePath = path.join(userDataPath, '.auth-session.json');
+  return sessionFilePath;
+}
+
+/**
+ * Sauvegarder les données d'authentification SAML
+ */
+ipcMain.handle('auth:save-session', async (event, data) => {
+  try {
+    const filePath = getSessionFilePath();
+    const sessionData = {
+      user: data.user,
+      config: data.config,
+      timestamp: Date.now(),
+    };
+    
+    fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2), 'utf8');
+    console.log('💾 Données SAML sauvegardées dans:', filePath);
+    
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Erreur lors de la sauvegarde de la session:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+/**
+ * Récupérer les données d'authentification SAML sauvegardées
+ */
+ipcMain.handle('auth:get-session', async (event) => {
+  try {
+    const filePath = getSessionFilePath();
+    
+    if (!fs.existsSync(filePath)) {
+      console.log('ℹ️ Fichier de session non trouvé:', filePath);
+      return { success: false, exists: false };
+    }
+    
+    const content = fs.readFileSync(filePath, 'utf8');
+    const sessionData = JSON.parse(content);
+    
+    console.log('✅ Données SAML récupérées depuis:', filePath);
+    console.log('   User:', sessionData.user?.name);
+    console.log('   Config keys:', Object.keys(sessionData.config || {}).length);
+    
+    return { 
+      success: true, 
+      exists: true,
+      user: sessionData.user,
+      config: sessionData.config,
+      timestamp: sessionData.timestamp
+    };
+  } catch (err) {
+    console.error('❌ Erreur lors de la lecture de la session:', err.message);
+    return { success: false, exists: false, error: err.message };
+  }
+});
+
+/**
+ * Supprimer les données d'authentification SAML (logout)
+ */
+ipcMain.handle('auth:clear-session', async (event) => {
+  try {
+    const filePath = getSessionFilePath();
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log('🗑️ Fichier de session supprimé:', filePath);
+    }
+    
+    return { success: true };
+  } catch (err) {
+    console.error('❌ Erreur lors de la suppression de la session:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
 const config = require('./config');
 
 // ============================================================

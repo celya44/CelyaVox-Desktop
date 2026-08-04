@@ -331,6 +331,43 @@
         // Vérifier si SAML doit être utilisé avant de charger l'app distante
         async function checkAndInitSSO() {
             try {
+                // ============================================================
+                // NOUVEAU: Vérifier d'abord s'il existe des données SAML persistées
+                // ============================================================
+                if (window.electron && window.electron.getAuthSession) {
+                    console.log('🔐 [NOUVEAU] Vérification des données SAML persistées...');
+                    try {
+                        const sessionResult = await window.electron.getAuthSession();
+                        
+                        if (sessionResult.exists && sessionResult.user && sessionResult.config) {
+                            console.log('✅ Données SAML trouvées! Restauration dans localStorage...');
+                            
+                            // Restaurer user
+                            localStorage.setItem('SamlUser', JSON.stringify(sessionResult.user));
+                            
+                            // Restaurer config
+                            for (const [key, value] of Object.entries(sessionResult.config)) {
+                                localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+                            }
+                            
+                            console.log('✅ Données restaurées - Chargement direct de l\'application');
+                            console.log('   User:', sessionResult.user?.name);
+                            console.log('   Config keys:', Object.keys(sessionResult.config).length);
+                            
+                            // Charger directement l'application sans refaire SAML
+                            loadRemoteApp();
+                            return;
+                        } else {
+                            console.log('ℹ️ Pas de données SAML persistées');
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ Erreur lors de la vérification des données persistées:', err.message);
+                    }
+                }
+                
+                // ============================================================
+                // Si pas de données persistées, vérifier sso.ini
+                // ============================================================
                 // Vérifier si sso.ini existe
                 if (window.electron && window.electron.checkSsoFile) {
                     console.log('🔍 Vérification du fichier sso.ini...');
