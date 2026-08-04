@@ -198,14 +198,43 @@ ipcMain.handle('auth:get-session', async (event) => {
 
 /**
  * Supprimer les données d'authentification SAML (logout)
+ * Efface:
+ *  - Fichier de session SAML
+ *  - Cookies
+ *  - Cache
+ *  - IndexedDB
+ *  - Service Workers
+ *  - LocalStorage et SessionStorage (côté Electron)
  */
 ipcMain.handle('auth:clear-session', async (event) => {
   try {
+    // Supprimer le fichier de session SAML
     const filePath = getSessionFilePath();
     
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       console.log('🗑️ Fichier de session supprimé:', filePath);
+    }
+    
+    // Effacer TOUTES les données persistées de la session Electron
+    // (cookies, cache, indexedDB, service workers, etc.)
+    try {
+      await session.defaultSession.clearStorageData({
+        storages: [
+          'appcache',      // Application cache
+          'cookies',       // Tous les cookies
+          'fileSystems',   // File systems
+          'indexdb',       // IndexedDB
+          'localstorage',  // LocalStorage (côté Electron)
+          'shadercache',   // Shader cache
+          'websql',        // Web SQL
+          'serviceworkers' // Service Workers
+        ]
+      });
+      console.log('🧹 Toutes les données de session Electron effacées');
+    } catch (sessionErr) {
+      console.warn('⚠️ Erreur lors du clearStorageData:', sessionErr.message);
+      // Continuer même si ça échoue
     }
     
     return { success: true };
