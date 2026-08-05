@@ -1363,10 +1363,14 @@ ipcMain.handle('init-saml-auth', async (event) => {
     
     return { success };
   } catch (error) {
-    console.error('❌ Erreur lors de l\'initialisation SAML:', error.message);
+    const errorMessage = error?.message || error?.toString?.() || String(error) || 'Erreur inconnue';
+    const errorStack = error?.stack || '';
+    console.error('❌ Erreur lors de l\'initialisation SAML:', errorMessage);
+    if (errorStack) console.error('📍 Stack trace:', errorStack);
     return { 
       success: false, 
-      error: error.message 
+      error: errorMessage,
+      details: errorStack
     };
   }
 });

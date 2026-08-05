@@ -188,7 +188,9 @@
                 const result = await window.electron.initSamlAuth();
                 
                 if (!result.success) {
-                    throw new Error(result.error || 'Erreur inconnue lors de l\'initialisation SAML');
+                    const errorMsg = result.error || 'Erreur inconnue lors de l\'initialisation SAML';
+                    const details = result.details ? `\n${result.details}` : '';
+                    throw new Error(`${errorMsg}${details}`);
                 }
                 
                 console.log('✅ Authentification SAML initialisée');
