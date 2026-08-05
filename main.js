@@ -1369,7 +1369,7 @@ ipcMain.handle('check-sso-file', async (event) => {
   try {
     if (!globalUserDataPath) {
       console.warn('⚠️ globalUserDataPath n\'est pas défini');
-      return { exists: false, error: 'globalUserDataPath not set' };
+      return { exists: false, configured: false, error: 'globalUserDataPath not set' };
     }
     
     console.log('[DEBUG] globalUserDataPath:', globalUserDataPath);
@@ -1378,22 +1378,62 @@ ipcMain.handle('check-sso-file', async (event) => {
     const exists = fs.existsSync(ssoFilePath);
     console.log('[DEBUG] Fichier existe?', exists);
     
+    let configured = false;
     if (exists) {
       console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);
       try {
         const content = fs.readFileSync(ssoFilePath, 'utf-8');
         console.log('[DEBUG] Contenu sso.ini (premiers 500 chars):', content.substring(0, 500));
+        
+        // Vérifier que le fichier contient une configuration SAML valide
+        // (pas juste vide ou commenté)
+        const lines = content.split('\n');
+        let inSamlSection = false;
+        let hasConfiguration = false;
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          
+          // Vérifier section [SAML]
+          if (trimmed === '[SAML]' || trimmed === '[saml]') {
+            inSamlSection = true;
+            console.log('[DEBUG] Section [SAML] trouvée');
+            continue;
+          }
+          
+          // Arrêter si on change de section
+          if (trimmed.startsWith('[') && trimmed !== '[SAML]' && trimmed !== '[saml]') {
+            inSamlSection = false;
+          }
+          
+          // Dans la section SAML, chercher une configuration valide
+          if (inSamlSection && !trimmed.startsWith('#') && trimmed.length > 0) {
+            if (trimmed.includes('=')) {
+              // Vérifier qu'il y a au moins une clé=valeur (pas juste commentée)
+              const [key, value] = trimmed.split('=', 2);
+              if (key.trim() && value.trim()) {
+                hasConfiguration = true;
+                console.log(`[DEBUG] Configuration trouvée: ${key.trim()}=${value.trim()}`);
+                break; // Une seule config suffit pour dire que SAML est configuré
+              }
+            }
+          }
+        }
+        
+        configured = hasConfiguration;
+        console.log(`[DEBUG] SAML configuré? ${configured}`);
       } catch (e) {
         console.warn('[DEBUG] Impossible de lire le contenu:', e.message);
+        configured = false;
       }
     } else {
       console.log(`ℹ️ Fichier sso.ini non trouvé: ${ssoFilePath}`);
     }
     
-    return { exists, path: ssoFilePath };
+    return { exists, configured, path: ssoFilePath };
   } catch (err) {
     console.error(`❌ Erreur lors de la vérification du fichier sso.ini: ${err.message}`);
-    return { exists: false, error: err.message };
+    return { exists: false, configured: false, error: err.message };
   }
 });
 

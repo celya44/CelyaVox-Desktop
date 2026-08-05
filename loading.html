@@ -399,18 +399,22 @@
                 // ============================================================
                 // Si pas de données persistées, vérifier sso.ini
                 // ============================================================
-                // Vérifier si sso.ini existe
+                // Vérifier si sso.ini existe ET est configuré
                 if (window.electron && window.electron.checkSsoFile) {
                     console.log('🔍 Vérification du fichier sso.ini...');
                     const result = await window.electron.checkSsoFile();
                     
                     console.log('📋 Résultat vérification sso.ini:', result);
                     
-                    if (result.exists) {
-                        // Le fichier sso.ini existe - lancer l'authentification SAML
-                        console.log('✅ Fichier sso.ini trouvé - Lancement SAML');
+                    if (result.configured) {
+                        // Le fichier sso.ini existe ET contient une configuration valide
+                        console.log('✅ Fichier sso.ini configuré - Lancement SAML');
                         await initSamlAuth();
                         return; // Ne pas charger l'app distante ici
+                    } else if (result.exists && !result.configured) {
+                        // Le fichier existe mais est vide/commenté
+                        console.log('ℹ️ Fichier sso.ini trouvé mais non configuré - Chargement direct de l\'application');
+                        loadRemoteApp();
                     } else {
                         console.log('ℹ️ Fichier sso.ini non trouvé - Chargement direct de l\'application');
                         loadRemoteApp();
