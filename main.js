@@ -31,15 +31,17 @@ let authWindow = null;
 // ============================================================
 function setupUserDataPath() {
   const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
-  const baseUserDataPath = app.getPath('userData');
+  
+  // Construire le path directement avec la casse correcte
+  // Ne pas dépendre de app.getPath('userData') qui applique les conventions Linux (minuscules)
   let userDataPath;
   
   if (isDev) {
-    // Dev: userData/.../CelyaVox-dev
-    userDataPath = path.join(baseUserDataPath, '..', 'CelyaVox-dev');
+    // Dev: ~/.config/CelyaVox-dev
+    userDataPath = path.join(app.getPath('home'), '.config', 'CelyaVox-dev');
   } else {
-    // Prod: userData est déjà ~/.config/CelyaVox/
-    userDataPath = baseUserDataPath;
+    // Prod: ~/.config/CelyaVox
+    userDataPath = path.join(app.getPath('home'), '.config', 'CelyaVox');
   }
   
   globalUserDataPath = userDataPath;
@@ -55,11 +57,13 @@ function setupUserDataPath() {
 function initializeConfigFile() {
   // Déterminer le chemin du userData
   const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
-  let userDataPath = globalUserDataPath || (isDev 
-    ? path.join(app.getPath('userData'), '..', 'CelyaVox-dev')
-    : app.getPath('userData'));
+  let userDataPath = globalUserDataPath;
   
-  if (!globalUserDataPath) {
+  // Fallback si globalUserDataPath n'est pas encore défini
+  if (!userDataPath) {
+    userDataPath = isDev
+      ? path.join(app.getPath('home'), '.config', 'CelyaVox-dev')
+      : path.join(app.getPath('home'), '.config', 'CelyaVox');
     globalUserDataPath = userDataPath;
   }
   
@@ -159,8 +163,8 @@ function getSessionFilePath() {
   
   const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
   const userDataPath = isDev 
-    ? path.join(app.getPath('userData'), '..', 'CelyaVox-dev')
-    : app.getPath('userData');
+    ? path.join(app.getPath('home'), '.config', 'CelyaVox-dev')
+    : path.join(app.getPath('home'), '.config', 'CelyaVox');
   
   sessionFilePath = path.join(userDataPath, '.auth-session.json');
   return sessionFilePath;
@@ -423,13 +427,12 @@ if (Object.keys(config._iniConfig).length > 0) {
   console.log(`⚙️  Configuration INI chargée:`, config._iniConfig);
 }
 
-// Séparer les données utilisateur entre dev et prod
+// Les données utilisateur sont déjà configurées par setupUserDataPath() avant app.whenReady()
+// Afficher juste le path configuré
 if (config.isDev) {
-  const userDataPath = path.join(app.getPath('userData'), '..', 'celyavox-dev');
-  app.setPath('userData', userDataPath);
-  console.log(`💾 Données utilisateur (DEV): ${userDataPath}`);
+  console.log(`💾 Données utilisateur (DEV): ${globalUserDataPath}`);
 } else {
-  console.log(`💾 Données utilisateur (PROD): ${app.getPath('userData')}`);
+  console.log(`💾 Données utilisateur (PROD): ${globalUserDataPath}`);
 }
 
 let mainWindow;
@@ -443,8 +446,14 @@ let pendingTelNumber = null;
 let windowStateSaveTimer = null;
 
 const TEL_PROTOCOL = 'tel';
-const TEL_PROMPT_STATE_FILE = path.join(app.getPath('userData'), 'tel-protocol-prompt.json');
-const WINDOW_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
+// Ces fichiers utilisent le userData path défini par setupUserDataPath()
+// Ils sont utilisés via des fonctions getter pour obtenir le bon path
+function getTelPromptStateFilePath() {
+  return path.join(globalUserDataPath || (process.env.APP_ENV === 'dev' ? path.join(app.getPath('home'), '.config', 'CelyaVox-dev') : path.join(app.getPath('home'), '.config', 'CelyaVox')), 'tel-protocol-prompt.json');
+}
+function getWindowStateFilePath() {
+  return path.join(globalUserDataPath || (process.env.APP_ENV === 'dev' ? path.join(app.getPath('home'), '.config', 'CelyaVox-dev') : path.join(app.getPath('home'), '.config', 'CelyaVox')), 'window-state.json');
+}
 const DEFAULT_WINDOW_BOUNDS = { 
   width: config.window?.width || 1280, 
   height: config.window?.height || 820 
@@ -453,7 +462,7 @@ const MIN_WINDOW_BOUNDS = { width: 450, height: 300 };
 
 function loadWindowState() {
   try {
-    const raw = fs.readFileSync(WINDOW_STATE_FILE, 'utf8');
+    const raw = fs.readFileSync(getWindowStateFilePath(), 'utf8');
     const data = JSON.parse(raw);
     if (!data || !data.bounds) return null;
     const bounds = data.bounds;
@@ -476,7 +485,7 @@ function persistWindowBounds() {
   if (!bounds) return;
   try {
     fs.writeFileSync(
-      WINDOW_STATE_FILE,
+      getWindowStateFilePath(),
       JSON.stringify({ bounds, ts: new Date().toISOString() }),
       'utf8'
     );
@@ -492,7 +501,7 @@ function scheduleWindowBoundsSave() {
 
 function hasShownTelProtocolPrompt() {
   try {
-    const raw = fs.readFileSync(TEL_PROMPT_STATE_FILE, 'utf8');
+    const raw = fs.readFileSync(getTelPromptStateFilePath(), 'utf8');
     const data = JSON.parse(raw);
     return !!(data && data.shown);
   } catch {
@@ -503,7 +512,7 @@ function hasShownTelProtocolPrompt() {
 function markTelProtocolPromptShown() {
   try {
     fs.writeFileSync(
-      TEL_PROMPT_STATE_FILE,
+      getTelPromptStateFilePath(),
       JSON.stringify({ shown: true, ts: new Date().toISOString() }),
       'utf8'
     );
