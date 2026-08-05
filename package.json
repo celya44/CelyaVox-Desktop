@@ -38,6 +38,7 @@
   },
   "license": "AGPL",
   "dependencies": {
+    "@sso/saml-package": "file:./saml-package",
     "axios": "^1.19.0",
     "express": "^5.2.1",
     "ini": "^4.1.3",

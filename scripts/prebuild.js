@@ -18,46 +18,54 @@ const env = process.env.APP_ENV || packageJson.config?.environment || 'dev';
 console.log(`\n🔧 Configuration du build pour l'environnement: ${env}\n`);
 
 // ============================================================
-// Compiler le saml-package AVANT le build principal
+// Vérifier le saml-package
 // ============================================================
 const samlPackagePath = path.join(__dirname, '..', 'saml-package');
 const samlDistPath = path.join(samlPackagePath, 'dist');
 const samlNodeModulesPath = path.join(samlPackagePath, 'node_modules');
+const samlDistIndexPath = path.join(samlDistPath, 'index.js');
 
-console.log('🔨 Compilation du saml-package...');
+console.log('🔨 Vérification du saml-package...');
 
 try {
-  // Vérifier si les dépendances du saml-package sont installées
-  if (!fs.existsSync(samlNodeModulesPath)) {
-    console.log('📦 Installation des dépendances du saml-package...');
+  // Vérifier si le saml-package est compilé
+  if (!fs.existsSync(samlDistIndexPath)) {
+    console.log('⚠️  dist/index.js manquant, compilation du saml-package...');
     
-    // Déterminer le shell approprié selon la plateforme
+    // Vérifier si les dépendances du saml-package sont installées
+    if (!fs.existsSync(samlNodeModulesPath)) {
+      console.log('📦 Installation des dépendances du saml-package...');
+      
+      // Déterminer le shell approprié selon la plateforme
+      const isWindows = process.platform === 'win32';
+      const shell = isWindows ? 'cmd' : true;  // true = shell par défaut
+      
+      execSync('npm install', { 
+        cwd: samlPackagePath,
+        stdio: 'inherit',
+        shell: shell
+      });
+      console.log('✅ Dépendances du saml-package installées\n');
+    }
+    
+    if (!fs.existsSync(samlDistPath)) {
+      fs.mkdirSync(samlDistPath, { recursive: true });
+    }
+    
+    // Exécuter tsc dans le répertoire saml-package
     const isWindows = process.platform === 'win32';
     const shell = isWindows ? 'cmd' : true;  // true = shell par défaut
     
-    execSync('npm install', { 
+    execSync('npx tsc', { 
       cwd: samlPackagePath,
       stdio: 'inherit',
       shell: shell
     });
-    console.log('✅ Dépendances du saml-package installées\n');
+    
+    console.log('✅ Compilation du saml-package réussie\n');
+  } else {
+    console.log('✅ saml-package compilé (dist/index.js trouvé)\n');
   }
-  
-  if (!fs.existsSync(samlDistPath)) {
-    fs.mkdirSync(samlDistPath, { recursive: true });
-  }
-  
-  // Exécuter tsc dans le répertoire saml-package
-  const isWindows = process.platform === 'win32';
-  const shell = isWindows ? 'cmd' : true;  // true = shell par défaut
-  
-  execSync('npx tsc', { 
-    cwd: samlPackagePath,
-    stdio: 'inherit',
-    shell: shell
-  });
-  
-  console.log('✅ Compilation du saml-package réussie\n');
 } catch (err) {
   console.error('❌ Erreur lors de la compilation du saml-package:', err.message);
   console.error('   Exécutez manuellement: cd saml-package && npm install && npx tsc');
