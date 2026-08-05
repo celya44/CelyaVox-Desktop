@@ -343,104 +343,142 @@ async function initializeSAML(mainWindow) {
     let SamlClient, loadSAMLConfig;
     
     try {
+      console.log('[SAML] 1️⃣ Chargement du package SAML compilé...');
       // Charger depuis le package compilé en JavaScript
       const samlPackage = require('./saml-package/dist/index');
       SamlClient = samlPackage.SamlClient;
       loadSAMLConfig = samlPackage.loadSAMLConfig;
-      console.log('✅ Package SAML compilé chargé avec succès');
+      console.log('[SAML] ✅ 1️⃣ Package SAML compilé chargé avec succès');
     } catch (err) {
-      console.warn('⚠️ Impossible de charger le package SAML compilé:', err.message);
-      throw new Error('SAML package not available. Please ensure it is compiled. Run: cd saml-package && npx tsc');
+      console.error('[SAML] ❌ 1️⃣ Impossible de charger le package SAML compilé:', err.message);
+      throw new Error(`SAML package not available. Erreur: ${err.message}`);
     }
 
-    console.log('🔐 Initialisation du client SAML...');
+    try {
+      console.log('[SAML] 2️⃣ Chargement de la configuration SAML...');
+      // Charger la configuration SAML
+      const samlConfig = loadSAMLConfig();
+      console.log('[SAML] ✅ 2️⃣ Configuration SAML chargée:', JSON.stringify(samlConfig, null, 2));
+      
+      if (!samlConfig || typeof samlConfig !== 'object') {
+        throw new Error(`Configuration SAML invalide: ${typeof samlConfig}`);
+      }
+    } catch (err) {
+      console.error('[SAML] ❌ 2️⃣ Erreur lors du chargement de la config:', err.message);
+      throw err;
+    }
 
-    // Charger la configuration SAML
-    const samlConfig = loadSAMLConfig();
-    console.log('📋 Configuration SAML chargée:', JSON.stringify(samlConfig, null, 2));
-
-    // Créer le client SAML
-    samlClient = new SamlClient(samlConfig, {
-      port: 3001,
-      autoLaunch: true,
-      closeWindowOnSuccess: true,
-    });
+    try {
+      console.log('[SAML] 3️⃣ Création du client SAML...');
+      const samlConfig = loadSAMLConfig();
+      // Créer le client SAML
+      samlClient = new SamlClient(samlConfig, {
+        port: 3001,
+        autoLaunch: true,
+        closeWindowOnSuccess: true,
+      });
+      console.log('[SAML] ✅ 3️⃣ Client SAML créé');
+    } catch (err) {
+      console.error('[SAML] ❌ 3️⃣ Erreur lors de la création du client SAML:', err.message);
+      throw err;
+    }
 
     if (mainWindow && !mainWindow.isDestroyed()) {
       samlClient.setMainWindow(mainWindow);
     }
 
     // Initialiser avec les callbacks
-    await samlClient.initialize({
-      onSuccess: async (result) => {
-        console.log('✅ Authentification SAML réussie!');
-        console.log('📝 Utilisateur:', result.user?.name);
-        console.log('🔍 [DEBUG] result.config type:', typeof result.config);
-        console.log('🔍 [DEBUG] result.config keys:', result.config ? Object.keys(result.config) : 'undefined');
-        if (result.config) {
-          console.log('⚙️ Configuration serveur:', JSON.stringify(result.config, null, 2));
-        } else {
-          console.warn('⚠️ result.config est undefined ou null');
-        }
+    try {
+      console.log('[SAML] 4️⃣ Initialisation du client SAML...');
+      await samlClient.initialize({
+        onSuccess: async (result) => {
+          console.log('✅ Authentification SAML réussie!');
+          console.log('📝 Utilisateur:', result.user?.name);
+          console.log('🔍 [DEBUG] result.config type:', typeof result.config);
+          console.log('🔍 [DEBUG] result.config keys:', result.config ? Object.keys(result.config) : 'undefined');
+          if (result.config) {
+            console.log('⚙️ Configuration serveur:', JSON.stringify(result.config, null, 2));
+          } else {
+            console.warn('⚠️ result.config est undefined ou null');
+          }
 
-        // Envoyer les données au renderer (user + config du serveur de validation)
-        // ⚠️ Attendre 500ms pour laisser le renderer enregistrer ses listeners
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          console.log('📤 [DEBUG] En attente de 500ms pour laisser les listeners du renderer se registrer...');
-          setTimeout(() => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              console.log('📤 Envoi du message auth:saml-success au renderer');
-              console.log('📤 [DEBUG] Données à envoyer:', JSON.stringify({user: result.user, config: result.config || {}}, null, 2));
-              mainWindow.webContents.send('auth:saml-success', {
-                user: result.user,
-                config: result.config || {},
-              });
-              console.log('✅ Message auth:saml-success envoyé');
-            } else {
-              console.error('❌ mainWindow est null ou détruit après attente');
-            }
-          }, 500);
-        } else {
-          console.error('❌ mainWindow est null ou détruit');
-        }
-      },
-      onError: (error) => {
-        console.error('❌ Erreur SAML:', error.message);
+          // Envoyer les données au renderer (user + config du serveur de validation)
+          // ⚠️ Attendre 500ms pour laisser le renderer enregistrer ses listeners
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            console.log('📤 [DEBUG] En attente de 500ms pour laisser les listeners du renderer se registrer...');
+            setTimeout(() => {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                console.log('📤 Envoi du message auth:saml-success au renderer');
+                console.log('📤 [DEBUG] Données à envoyer:', JSON.stringify({user: result.user, config: result.config || {}}, null, 2));
+                mainWindow.webContents.send('auth:saml-success', {
+                  user: result.user,
+                  config: result.config || {},
+                });
+                console.log('✅ Message auth:saml-success envoyé');
+              } else {
+                console.error('❌ mainWindow est null ou détruit après attente');
+              }
+            }, 500);
+          } else {
+            console.error('❌ mainWindow est null ou détruit');
+          }
+        },
+        onError: (error) => {
+          console.error('❌ Erreur SAML:', error.message);
 
-        // Envoyer l'erreur au renderer
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('saml:error', { error: error.message });
-        }
-      },
-    });
+          // Envoyer l'erreur au renderer
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('saml:error', { error: error.message });
+          }
+        },
+      });
+      console.log('[SAML] ✅ 4️⃣ Client SAML initialisé');
+    } catch (err) {
+      console.error('[SAML] ❌ 4️⃣ Erreur lors de l\'initialisation du client:', err.message);
+      throw err;
+    }
 
     // Démarrer le serveur SAML
-    await samlClient.start();
-    console.log('🚀 Serveur SAML démarré');
+    try {
+      console.log('[SAML] 5️⃣ Démarrage du serveur SAML...');
+      await samlClient.start();
+      console.log('[SAML] ✅ 5️⃣ Serveur SAML démarré');
+    } catch (err) {
+      console.error('[SAML] ❌ 5️⃣ Erreur lors du démarrage du serveur:', err.message);
+      throw err;
+    }
 
     // Ouvrir le navigateur avec l'URL de login
-    const loginURL = samlClient.getLoginURL();
-    console.log(`🌐 Ouverture URL SAML: ${loginURL}`);
-    
     try {
+      console.log('[SAML] 6️⃣ Ouverture de l\'URL de login...');
+      const loginURL = samlClient.getLoginURL();
+      console.log(`[SAML] ✅ 6️⃣ URL SAML obtenue: ${loginURL}`);
+      console.log(`[SAML] 7️⃣ Ouverture URL SAML dans le navigateur: ${loginURL}`);
+      
       await shell.openExternal(loginURL);
-      console.log(`✅ Navigateur ouvert avec succès: ${loginURL}`);
+      console.log(`[SAML] ✅ 7️⃣ Navigateur ouvert avec succès`);
     } catch (err) {
-      console.error(`❌ Erreur lors de l'ouverture du navigateur: ${err.message}`);
-      console.error(`   Essai d'ouverture manuelle de: ${loginURL}`);
+      console.error(`[SAML] ❌ 7️⃣ Erreur lors de l'ouverture du navigateur: ${err.message}`);
+      // Ne pas lancer d'exception, c'est juste l'ouverture du navigateur
+      console.error(`[SAML]    Essai d'ouverture manuelle de: ${loginURL}`);
       // Fallback: essayer directement
       shell.openExternal(loginURL).catch(fallbackErr => {
-        console.error(`❌ Fallback échoué aussi: ${fallbackErr.message}`);
+        console.error(`[SAML] ❌ Fallback échoué aussi: ${fallbackErr.message}`);
       });
     }
 
+    console.log('\n✅ initializeSAML() terminée avec succès\n');
     return true;
   } catch (error) {
-    console.error('❌ Erreur lors de l\'initialisation SAML:', error.message);
+    const errorMsg = error?.message || error?.toString?.() || String(error);
+    const errorStack = error?.stack || '';
+    console.error('\n❌ ERREUR CRITIQUE dans initializeSAML():', errorMsg);
+    console.error('📍 Stack trace complet:', errorStack);
+    console.error('');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('saml:error', { 
-        error: `Erreur SAML: ${error.message}`,
-        details: error.message
+        error: `Erreur SAML: ${errorMsg}`,
+        details: errorStack
       });
     }
     return false;
@@ -1458,10 +1496,13 @@ ipcMain.handle('init-saml-auth', async (event) => {
       console.log('[DEBUG] initializeSAML() terminée, success:', success);
       
       if (!success) {
+        // Si elle retourne false, c'est qu'une erreur a été loggée dans initializeSAML()
+        // mais le message exact n'est pas propagé. On doit attendre que les logs
+        // soient affichés dans la console.
         return { 
           success: false, 
-          error: 'initializeSAML() retourné false',
-          details: 'initializeSAML() n\'a pas retourné true'
+          error: 'Erreur lors de l\'initialisation SAML - Consultez les logs pour plus de détails',
+          details: 'Voir la console du navigateur pour le message d\'erreur complet'
         };
       }
       
