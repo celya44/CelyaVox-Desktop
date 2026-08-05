@@ -218,7 +218,8 @@
       "artifactName": "${productName}-${version}.${ext}"
     },
     "rpm": {
-      "artifactName": "celyavox-dev-${version}.${arch}.${ext}"
+      "artifactName": "celyavox-dev-${version}.${arch}.${ext}",
+      "packageName": "celyavox-dev"
     }
   }
 }
