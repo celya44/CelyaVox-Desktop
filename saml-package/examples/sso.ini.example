@@ -1,29 +1,29 @@
 # SAML Configuration Example
 # Copy this file to ~/.config/CelyaVox/sso.ini and configure it with your IdP settings
 
-[SAML]
-# Option 1: Automatic metadata discovery (RECOMMENDED)
-# This will automatically fetch the certificate and entry point from your IdP
-metadataUrl=https://your-idp.example.com/metadata.xml
+# [SAML]
+# # Option 1: Automatic metadata discovery (RECOMMENDED)
+# # This will automatically fetch the certificate and entry point from your IdP
+# # metadataUrl=https://your-idp.example.com/metadata.xml
 
-# Option 2: Manual configuration (fallback if metadata discovery fails)
-# Provide certificate and entry point manually
-# certificateFilePath=/path/to/idp-certificate.pem
-# OR certificateFilePath=https://your-idp.example.com/certificate.pem
-# entryPoint=https://your-idp.example.com/saml/sso
+# # Option 2: Manual configuration (fallback if metadata discovery fails)
+# # Provide certificate and entry point manually
+# # certificateFilePath=/path/to/idp-certificate.pem
+# # OR certificateFilePath=https://your-idp.example.com/certificate.pem
+# # entryPoint=https://your-idp.example.com/saml/sso
 
-# Service Provider configuration
-# This is how your IdP identifies this application
-issuer=urn:myapp:identifier
+# # Service Provider configuration
+# # This is how your IdP identifies this application
+# # issuer=urn:myapp:identifier
 
-# Callback URL where IdP will redirect after authentication
-# This must match your IdP configuration
-callbackUrl=http://localhost:3001/auth/saml/callback
+# # Callback URL where IdP will redirect after authentication
+# # This must match your IdP configuration
+# # callbackUrl=http://localhost:3001/auth/saml/callback
 
-# Optional: Backend API endpoint for validating SAML assertions
-# If configured, the SAML assertion will be sent to this endpoint for server-side validation
-# validateUrl=https://your-backend-api.example.com/api/saml/validate
+# # Optional: Backend API endpoint for validating SAML assertions
+# # If configured, the SAML assertion will be sent to this endpoint for server-side validation
+# # validateUrl=https://your-backend-api.example.com/api/saml/validate
 
-# Advanced: For local development with ngrok or custom domains
-# If using a custom domain instead of localhost:
-# callbackUrl=https://your-custom-domain.example.com/auth/saml/callback
+# # Advanced: For local development with ngrok or custom domains
+# # If using a custom domain instead of localhost:
+# # callbackUrl=https://your-custom-domain.example.com/auth/saml/callback
