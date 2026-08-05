@@ -27,19 +27,43 @@ let samlClient = null;
 let authWindow = null;
 
 // ============================================================
+// Définir le chemin userData AVANT que Electron ne le détermine
+// ============================================================
+function setupUserDataPath() {
+  const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
+  const baseUserDataPath = app.getPath('userData');
+  let userDataPath;
+  
+  if (isDev) {
+    // Dev: userData/.../CelyaVox-dev
+    userDataPath = path.join(baseUserDataPath, '..', 'CelyaVox-dev');
+  } else {
+    // Prod: userData est déjà ~/.config/CelyaVox/
+    userDataPath = baseUserDataPath;
+  }
+  
+  globalUserDataPath = userDataPath;
+  app.setPath('userData', userDataPath);
+  
+  console.log(`🔧 userData défini: ${userDataPath}`);
+  console.log(`   Environnement: ${isDev ? 'DEV' : 'PROD'}`);
+}
+
+// ============================================================
 // Initialiser le fichier config.ini
 // ============================================================
 function initializeConfigFile() {
   // Déterminer le chemin du userData
   const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
-  let userDataPath;
+  let userDataPath = globalUserDataPath || (isDev 
+    ? path.join(app.getPath('userData'), '..', 'CelyaVox-dev')
+    : app.getPath('userData'));
+  
+  if (!globalUserDataPath) {
+    globalUserDataPath = userDataPath;
+  }
   
   try {
-    if (isDev) {
-      userDataPath = path.join(app.getPath('userData'), '..', 'celyavox-dev');
-    } else {
-      userDataPath = app.getPath('userData');
-    }
   } catch (err) {
     console.error(`❌ Erreur lors de la détermination du chemin userData: ${err.message}`);
     return;
@@ -135,7 +159,7 @@ function getSessionFilePath() {
   
   const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
   const userDataPath = isDev 
-    ? path.join(app.getPath('userData'), '..', 'celyavox-dev')
+    ? path.join(app.getPath('userData'), '..', 'CelyaVox-dev')
     : app.getPath('userData');
   
   sessionFilePath = path.join(userDataPath, '.auth-session.json');
@@ -1337,6 +1361,11 @@ ipcMain.handle('init-saml-auth', async (event) => {
     };
   }
 });
+
+// ============================================================
+// IMPORTANT: Définir le chemin userData AVANT app.whenReady()
+// ============================================================
+setupUserDataPath();
 
 // ----------------------
 // App ready

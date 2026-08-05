@@ -38,7 +38,6 @@
   },
   "license": "AGPL",
   "dependencies": {
-    "@sso/saml-package": "file:./saml-package",
     "axios": "^1.19.0",
     "express": "^5.2.1",
     "ini": "^4.1.3",
@@ -57,8 +56,7 @@
     "dotenv": "^16.4.5",
     "electron": "^38.2.2",
     "electron-builder": "^24.0.0",
-    "icon-gen": "^5.0.0",
-    "typescript": "^4.9.0"
+    "icon-gen": "^5.0.0"
   },
   "build": {
     "productName": "CelyaVox-dev",
@@ -79,8 +77,14 @@
       "notification-call.html",
       "enable-text-selection.css",
       "config.js",
+      "config.ini.example",
+      "postinstall_debian.sh",
+      "postinstall_windows.ps1",
+      "postinstall_windows.bat",
+      "installer.nsh",
       "resources/**",
       "saml-package/dist/**",
+      "saml-package/examples/sso.ini.example",
       "package.json",
       "assets/icons/**",
       "!**/*.map",
@@ -138,7 +142,7 @@
       "verifyUpdateCodeSignature": false,
       "target": [
         {
-          "target": "msi",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
@@ -150,6 +154,19 @@
           ]
         }
       ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "${productName}",
+      "installerIcon": "assets/icons/icon.ico",
+      "uninstallerIcon": "assets/icons/icon.ico",
+      "installerHeader": "assets/icons/icon.ico",
+      "installerSidebar": "assets/icons/icon.ico"
     },
     "msi": {
       "artifactName": "${productName}-${version}.${ext}",
@@ -219,8 +236,7 @@
       "artifactName": "${productName}-${version}.${ext}"
     },
     "rpm": {
-      "artifactName": "celyavox-dev-${version}.${arch}.${ext}",
-      "packageName": "celyavox-dev"
+      "artifactName": "celyavox-dev-${version}.${arch}.${ext}"
     }
   }
 }
