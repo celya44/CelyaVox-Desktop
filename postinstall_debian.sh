@@ -13,10 +13,10 @@ fi
 
 # Déterminer les chemins
 if [ "$IS_DEV" = true ]; then
-    CONFIG_DIR="${HOME}/.config/CelyaVox-dev"
+    CONFIG_DIR="$HOME/.config/CelyaVox-dev"
     BINARY_NAME="celyavox-dev"
 else
-    CONFIG_DIR="${HOME}/.config/CelyaVox"
+    CONFIG_DIR="$HOME/.config/CelyaVox"
     BINARY_NAME="celyavox"
 fi
 
