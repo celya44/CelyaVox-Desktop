@@ -334,6 +334,12 @@ const config = require('./config');
 // ============================================================
 
 /**
+ * Variable globale pour stocker le dernier message d'erreur SAML
+ * utilisé par le handler pour retourner l'erreur réelle au renderer
+ */
+let lastSAMLErrorMessage = null;
+
+/**
  * Initialiser et démarrer le serveur SAML
  */
 async function initializeSAML(mainWindow) {
@@ -472,6 +478,10 @@ async function initializeSAML(mainWindow) {
   } catch (error) {
     const errorMsg = error?.message || error?.toString?.() || String(error);
     const errorStack = error?.stack || '';
+    
+    // Stocker le message d'erreur pour le récupérer dans le handler
+    lastSAMLErrorMessage = `${errorMsg}\n\nStack: ${errorStack}`;
+    
     console.error('\n❌ ERREUR CRITIQUE dans initializeSAML():', errorMsg);
     console.error('📍 Stack trace complet:', errorStack);
     console.error('');
@@ -1496,13 +1506,13 @@ ipcMain.handle('init-saml-auth', async (event) => {
       console.log('[DEBUG] initializeSAML() terminée, success:', success);
       
       if (!success) {
-        // Si elle retourne false, c'est qu'une erreur a été loggée dans initializeSAML()
-        // mais le message exact n'est pas propagé. On doit attendre que les logs
-        // soient affichés dans la console.
+        // initializeSAML() a attrapé une erreur et l'a stockée dans lastSAMLErrorMessage
+        const errorMsg = lastSAMLErrorMessage || 'Erreur SAML inconnue (aucun message capturé)';
+        console.error('[DEBUG] Retour du handler avec erreur:', errorMsg);
         return { 
           success: false, 
-          error: 'Erreur lors de l\'initialisation SAML - Consultez les logs pour plus de détails',
-          details: 'Voir la console du navigateur pour le message d\'erreur complet'
+          error: errorMsg,
+          details: 'Voir la console principale pour plus de détails'
         };
       }
       
