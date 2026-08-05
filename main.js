@@ -141,6 +141,61 @@ function initializeConfigFile() {
     console.log(`✅ Fichier config.ini existant utilisé: ${userConfigPath}`);
   }
   
+  // ============================================================
+  // Créer sso.ini depuis sso.ini.example si absent
+  // ============================================================
+  const userSsoPath = path.join(userDataPath, 'sso.ini');
+  let bundleSsoPath = null;
+  const possibleSsoPaths = [
+    path.join(app.getAppPath(), 'saml-package', 'examples', 'sso.ini.example'),
+    path.join(process.resourcesPath || __dirname, 'saml-package', 'examples', 'sso.ini.example'),
+    path.join(__dirname, 'saml-package', 'examples', 'sso.ini.example'),
+    path.join(app.getAppPath(), 'sso.ini.example'),
+    path.join(process.resourcesPath || __dirname, 'sso.ini.example'),
+    path.join(__dirname, 'sso.ini.example'),
+  ];
+  
+  for (const p of possibleSsoPaths) {
+    if (fs.existsSync(p)) {
+      bundleSsoPath = p;
+      console.log(`✅ Fichier sso.ini.example trouvé: ${bundleSsoPath}`);
+      break;
+    }
+  }
+  
+  // Si le fichier utilisateur n'existe pas, le copier depuis l'exemple
+  if (!fs.existsSync(userSsoPath)) {
+    if (bundleSsoPath) {
+      try {
+        fs.copyFileSync(bundleSsoPath, userSsoPath);
+        console.log(`📋 Fichier sso.ini copié vers: ${userSsoPath}`);
+      } catch (err) {
+        console.error(`❌ Erreur lors de la copie de sso.ini: ${err.message}`);
+      }
+    } else {
+      // Fallback: créer un fichier sso.ini par défaut
+      console.warn(`⚠️ Fichier sso.ini.example non trouvé. Création d'un fichier par défaut...`);
+      const defaultSso = `; Configuration SAML SSO - Auto-généré si absent du bundle
+; À personnaliser avec vos paramètres SAML
+
+[saml]
+enabled=false
+; entry_point=https://idp.example.com/sso
+; issuer=https://celyavox.example.com
+; cert=
+; identifierFormat=urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+`;
+      try {
+        fs.writeFileSync(userSsoPath, defaultSso, 'utf-8');
+        console.log(`✅ Fichier sso.ini par défaut créé: ${userSsoPath}`);
+      } catch (err) {
+        console.error(`❌ Erreur lors de la création du fichier sso.ini: ${err.message}`);
+      }
+    }
+  } else {
+    console.log(`✅ Fichier sso.ini existant utilisé: ${userSsoPath}`);
+  }
+  
   // Stocker le chemin userData dans une variable globale pour accès futur
   globalUserDataPath = userDataPath;
   
