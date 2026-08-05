@@ -16,7 +16,7 @@ import { SAMLConfig } from './types';
 function getConfigDirectory(): string {
   const platform = process.platform;
   const appEnv = process.env.APP_ENV || 'prod';
-  const appName = appEnv === 'dev' ? 'celyavox-dev' : 'CelyaVox';
+  const appName = appEnv === 'dev' ? 'CelyaVox-dev' : 'CelyaVox';
   
   let configDir: string;
   

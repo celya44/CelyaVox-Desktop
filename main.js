@@ -1453,14 +1453,30 @@ ipcMain.handle('init-saml-auth', async (event) => {
     
     // Initialiser SAML
     console.log('[DEBUG] Appel de initializeSAML()');
-    const success = await initializeSAML(mainWindow);
-    console.log('[DEBUG] initializeSAML() terminée, success:', success);
-    
-    return { success };
+    try {
+      const success = await initializeSAML(mainWindow);
+      console.log('[DEBUG] initializeSAML() terminée, success:', success);
+      
+      if (!success) {
+        return { 
+          success: false, 
+          error: 'initializeSAML() retourné false',
+          details: 'initializeSAML() n\'a pas retourné true'
+        };
+      }
+      
+      return { success: true };
+    } catch (samlError) {
+      const errorMsg = samlError?.message || samlError?.toString?.() || String(samlError);
+      const errorStack = samlError?.stack || '';
+      console.error('❌ Exception lors de initializeSAML():', errorMsg);
+      console.error('📍 Stack:', errorStack);
+      throw samlError;
+    }
   } catch (error) {
     const errorMessage = error?.message || error?.toString?.() || String(error) || 'Erreur inconnue';
     const errorStack = error?.stack || '';
-    console.error('❌ Erreur lors de l\'initialisation SAML:', errorMessage);
+    console.error('❌ Erreur lors de l\'initialisation SAML (handler):', errorMessage);
     if (errorStack) console.error('📍 Stack trace:', errorStack);
     return { 
       success: false, 

@@ -186,11 +186,14 @@
                 
                 // Appeler le handler SAML dans main.js
                 const result = await window.electron.initSamlAuth();
+                console.log('📋 Réponse init-saml-auth complète:', JSON.stringify(result, null, 2));
                 
                 if (!result.success) {
                     const errorMsg = result.error || 'Erreur inconnue lors de l\'initialisation SAML';
-                    const details = result.details ? `\n${result.details}` : '';
-                    throw new Error(`${errorMsg}${details}`);
+                    const details = result.details ? `\n📍 Détails:\n${result.details}` : '';
+                    const fullError = `${errorMsg}${details}`;
+                    console.error('❌ Erreur SAML détaillée:', fullError);
+                    throw new Error(fullError);
                 }
                 
                 console.log('✅ Authentification SAML initialisée');
