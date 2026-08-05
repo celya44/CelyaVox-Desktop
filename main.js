@@ -21,6 +21,24 @@ const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, N
 const path = require('path');
 const fs = require('fs');
 
+// ============================================================
+// ÉTAPE 1: Définir APP_ENV TRÈS TÔT avant tout autre code
+// ============================================================
+// Ceci doit être fait AVANT setupUserDataPath() et AVANT que saml-package soit chargé
+if (!process.env.APP_ENV) {
+  try {
+    const packageJson = require('./package.json');
+    const env = packageJson.config?.environment || 'prod';
+    process.env.APP_ENV = env;
+    console.log(`📝 APP_ENV défini à partir de package.json: ${env}`);
+  } catch (e) {
+    // Fallback
+    process.env.APP_ENV = 'prod';
+    console.log('⚠️ Fallback APP_ENV=prod');
+  }
+}
+console.log(`✅ APP_ENV = ${process.env.APP_ENV}`);
+
 // Variable globale pour stocker le chemin userData
 let globalUserDataPath = null;
 let samlClient = null;
@@ -30,7 +48,8 @@ let authWindow = null;
 // Définir le chemin userData AVANT que Electron ne le détermine
 // ============================================================
 function setupUserDataPath() {
-  const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
+  // APP_ENV a déjà été défini au-dessus
+  const isDev = process.env.APP_ENV === 'dev';
   
   // Construire le path directement avec la casse correcte
   // Ne pas dépendre de app.getPath('userData') qui applique les conventions Linux (minuscules)
@@ -55,8 +74,8 @@ function setupUserDataPath() {
 // Initialiser le fichier config.ini
 // ============================================================
 function initializeConfigFile() {
-  // Déterminer le chemin du userData
-  const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
+  // APP_ENV a déjà été défini au-dessus
+  const isDev = process.env.APP_ENV === 'dev';
   let userDataPath = globalUserDataPath;
   
   // Fallback si globalUserDataPath n'est pas encore défini
@@ -216,7 +235,8 @@ let sessionFilePath = null;
 function getSessionFilePath() {
   if (sessionFilePath) return sessionFilePath;
   
-  const isDev = process.env.APP_ENV === 'dev' || (!process.env.APP_ENV && require('./package.json').config?.environment === 'dev');
+  // APP_ENV a déjà été défini au-dessus
+  const isDev = process.env.APP_ENV === 'dev';
   const userDataPath = isDev 
     ? path.join(app.getPath('home'), '.config', 'CelyaVox-dev')
     : path.join(app.getPath('home'), '.config', 'CelyaVox');
