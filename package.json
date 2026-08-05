@@ -81,7 +81,7 @@
       "postinstall_debian.sh",
       "postinstall_windows.ps1",
       "postinstall_windows.bat",
-      "installer.nsh",
+      "build/installer-hooks.nsh",
       "resources/**",
       "saml-package/dist/**",
       "saml-package/examples/sso.ini.example",
@@ -101,7 +101,6 @@
       "!id_rsa*",
       "!*.debian",
       "!*.windows",
-      "!postinstall_debian.sh",
       "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,*.md,test,tests,__tests__,.github,docs,doc,examples,example}"
     ],
     "asarUnpack": [
@@ -134,7 +133,6 @@
       ]
     },
     "win": {
-      "icon": "assets/icons",
       "publisherName": "CELYA",
       "signingHashAlgorithms": [
         "sha256"
@@ -158,15 +156,11 @@
     "nsis": {
       "artifactName": "${productName}-${version}-setup.${ext}",
       "oneClick": false,
-      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "${productName}",
-      "installerIcon": "assets/icons/icon.ico",
-      "uninstallerIcon": "assets/icons/icon.ico",
-      "installerHeader": "assets/icons/icon.ico",
-      "installerSidebar": "assets/icons/icon.ico"
+      "include": "build/installer-hooks.nsh"
     },
     "msi": {
       "artifactName": "${productName}-${version}.${ext}",

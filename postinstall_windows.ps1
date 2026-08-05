@@ -1,11 +1,15 @@
 # postinstall_windows.ps1 - Script post-installation pour Windows (NSIS)
 # Crée les répertoires de configuration et copie les fichiers de sample
 
+param(
+    [string]$InstallDir = ""
+)
+
 # Déterminer si c'est une installation dev ou prod
 $PackageName = $env:INSTALLER_PACKAGE_NAME
 if (-not $PackageName) {
     # Chercher dans le répertoire d'installation
-    if ($INSTALLER_PATH -like "*dev*") {
+    if ($InstallDir -like "*dev*") {
         $PackageName = "dev"
     } else {
         $PackageName = "prod"
@@ -32,19 +36,8 @@ if (-not (Test-Path $ConfigDir)) {
 }
 
 # Chercher les fichiers de sample dans le répertoire d'installation
-$InstallDir = $INSTALLER_PATH
-if (-not $InstallDir) {
-    # Fallback: chercher dans Program Files
-    foreach ($Dir in @("${env:ProgramFiles}\celyavox*", "${env:ProgramFiles(x86)}\celyavox*")) {
-        if (Test-Path $Dir) {
-            $InstallDir = $Dir
-            break
-        }
-    }
-}
-
 if ($InstallDir -and (Test-Path $InstallDir)) {
-    Write-Host "📦 [postinstall] Répertoire d'installation trouvé: $InstallDir" -ForegroundColor Green
+    Write-Host "📦 [postinstall] Répertoire d'installation: $InstallDir" -ForegroundColor Green
     
     # Copier config.ini.example s'il n'existe pas
     $ConfigExample = Join-Path $InstallDir "config.ini.example"
