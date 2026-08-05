@@ -31,12 +31,12 @@ const getConfigPath = () => {
   if (homeDir) {
     if (environment === 'dev') {
       if (process.platform === 'linux') {
-        configPaths.push(path.join(homeDir, '.config', 'celyavox-dev', 'config.ini'));
+        configPaths.push(path.join(homeDir, '.config', 'CelyaVox-dev', 'config.ini'));
       } else if (process.platform === 'darwin') {
-        configPaths.push(path.join(homeDir, 'Library', 'Application Support', 'celyavox-dev', 'config.ini'));
+        configPaths.push(path.join(homeDir, 'Library', 'Application Support', 'CelyaVox-dev', 'config.ini'));
       } else if (process.platform === 'win32') {
         const appData = process.env.APPDATA || homeDir;
-        configPaths.push(path.join(appData, 'celyavox-dev', 'config.ini'));
+        configPaths.push(path.join(appData, 'CelyaVox-dev', 'config.ini'));
       }
     } else {
       if (process.platform === 'linux') {
