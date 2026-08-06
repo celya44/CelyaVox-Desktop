@@ -6,17 +6,24 @@
 # Exemple (à décommenter et modifier selon vos besoins):
 
 # [server]
-# serverUrl=https://your-server.com/phone
+# URL du server pour le téléchargement de l'application
+# serverUrl=https://celyavox.celya.fr/phone
 
 # [app]  
-# appName=Mon CelyaVox
-# appId=fr.mon-entreprise.celyavox
+# Nom de l'application affichée lors de l'utilisation
+# appName=CelyaVox
 
 # [window]
+# # Taille de la fenêtre principale (pixels)
 # width=1280
 # height=820
 
 # [ui]
+# Interface utilisateur
+# disableBuddies: Supprime le bouton "Ajouter un contact" du profil (0=activé, 1=désactivé)
+# disableDoNotDisturb: Masque le bloc "Ne pas déranger (DND)" des Fonctions avancées (0=afficher, 1=masquer)
+# disableCallForward: Masque le bloc "Renvoi d'appel (CFU)" des Fonctions avancées (0=afficher, 1=masquer)
+# disableGUISipAccount: Masque le bloc "Compte" des paramètres (0=afficher, 1=masquer)
 # disableBuddies=0
 # disableDoNotDisturb=0
 # disableCallForward=0

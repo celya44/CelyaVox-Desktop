@@ -198,6 +198,26 @@ if (iniConfig.audio) {
   }
 }
 
+if (iniConfig.server) {
+  console.log(`  🌐 Paramètres Serveur trouvés dans INI:`, iniConfig.server);
+  if (iniConfig.server.serverUrl) {
+    mergedConfig.serverUrl = iniConfig.server.serverUrl;
+    console.log(`    ✅ serverUrl: ${mergedConfig.serverUrl}`);
+  }
+}
+
+if (iniConfig.app) {
+  console.log(`  📦 Paramètres App trouvés dans INI:`, iniConfig.app);
+  if (iniConfig.app.appName) {
+    mergedConfig.appName = iniConfig.app.appName;
+    console.log(`    ✅ appName: ${mergedConfig.appName}`);
+  }
+  if (iniConfig.app.appId) {
+    mergedConfig.appId = iniConfig.app.appId;
+    console.log(`    ✅ appId: ${mergedConfig.appId}`);
+  }
+}
+
 module.exports = {
   environment,
   ...mergedConfig,
@@ -217,6 +237,9 @@ module.exports = {
 console.log(`
 ✨ CONFIG FINALE EXPORTÉE:
   Environnement: ${environment}
+  App Name: ${mergedConfig.appName}
+  App ID: ${mergedConfig.appId}
+  Server URL: ${mergedConfig.serverUrl}
   Window: ${JSON.stringify(mergedConfig.window || currentConfig.window)}
   UI: ${JSON.stringify(mergedConfig.ui || currentConfig.ui)}
   Audio: ${JSON.stringify(mergedConfig.audio || currentConfig.audio)}
