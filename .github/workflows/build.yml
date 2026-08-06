@@ -15,6 +15,7 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
     
     strategy:
       matrix:
@@ -29,8 +30,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        continue-on-error: false
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
+        continue-on-error: false
         with:
           node-version: '24'
           cache: 'npm'

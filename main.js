@@ -82,6 +82,7 @@ function setupUserDataPath() {
 function verifySSOStatus() {
   const fs = require('fs');
   const path = require('path');
+  const ini = require('ini');
   
   // Chercher sso.ini dans : resourcesPath → __dirname → user directory
   const resourcesPath = process.resourcesPath;
@@ -109,20 +110,49 @@ function verifySSOStatus() {
     logger.log(`   ${status} [${i + 1}/${searchPaths.length}] ${filePath}`);
     
     if (exists) {
-      // Vérifier si le fichier est configuré (pas vide ni commenté)
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const hasConfig = content.split('\n').some(line => {
-        const trimmed = line.trim();
-        return trimmed && !trimmed.startsWith(';') && !trimmed.startsWith('#');
-      });
-      
-      logger.log(`       → Configuré: ${hasConfig ? '✅ OUI' : '⚠️ NON (vide ou commenté)'}`);
-      
-      return {
-        exists: true,
-        path: filePath,
-        configured: hasConfig
-      };
+      try {
+        // Lire le fichier
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const stats = fs.statSync(filePath);
+        
+        // Vérifier si le fichier est configuré (pas vide ni commenté)
+        const hasConfig = content.split('\n').some(line => {
+          const trimmed = line.trim();
+          return trimmed && !trimmed.startsWith(';') && !trimmed.startsWith('#');
+        });
+        
+        logger.log(`       → Taille: ${stats.size} bytes`);
+        logger.log(`       → Configuré: ${hasConfig ? '✅ OUI' : '⚠️ NON (vide ou commenté)'}`);
+        
+        // Parser le fichier INI et afficher les sections
+        if (hasConfig) {
+          try {
+            const parsedConfig = ini.parse(content);
+            const sections = Object.keys(parsedConfig);
+            logger.log(`       → Sections trouvées: ${sections.join(', ')}`);
+            
+            // Afficher les clés principales de chaque section
+            for (const section of sections) {
+              if (typeof parsedConfig[section] === 'object') {
+                const keys = Object.keys(parsedConfig[section]);
+                const values = keys.map(k => `${k}=${parsedConfig[section][k]}`).join(', ');
+                logger.log(`           [${section}] ${values}`);
+              }
+            }
+          } catch (parseError) {
+            logger.log(`       → ⚠️ Erreur lors du parsing INI: ${parseError.message}`);
+          }
+        }
+        
+        return {
+          exists: true,
+          path: filePath,
+          configured: hasConfig,
+          size: stats.size
+        };
+      } catch (error) {
+        logger.log(`       → ⚠️ Erreur lors de la lecture: ${error.message}`);
+      }
     }
   }
   
@@ -300,13 +330,16 @@ let sessionFilePath = null;
 function getSessionFilePath() {
   if (sessionFilePath) return sessionFilePath;
   
-  // APP_ENV a déjà été défini au-dessus
-  const isDev = process.env.APP_ENV === 'dev';
-  const userDataPath = isDev 
-    ? path.join(app.getPath('home'), '.config', 'CelyaVox-dev')
-    : path.join(app.getPath('home'), '.config', 'CelyaVox');
+  // Utiliser globalUserDataPath qui est défini avec les bons chemins pour chaque plateforme
+  // (voir setupUserDataPath() pour plus de détails)
+  if (!globalUserDataPath) {
+    logger.error('❌ globalUserDataPath n\'est pas défini dans getSessionFilePath()');
+    // Fallback pour la sécurité (ne devrait jamais arriver là)
+    return path.join(app.getPath('userData'), '.auth-session.json');
+  }
   
-  sessionFilePath = path.join(userDataPath, '.auth-session.json');
+  sessionFilePath = path.join(globalUserDataPath, '.auth-session.json');
+  logger.log(`📁 Chemin de session SAML: ${sessionFilePath}`);
   return sessionFilePath;
 }
 
@@ -322,12 +355,26 @@ ipcMain.handle('auth:save-session', async (event, data) => {
       timestamp: Date.now(),
     };
     
+    // S'assurer que le répertoire existe
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      logger.log(`📁 Répertoire créé: ${dir}`);
+    }
+    
     fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2), 'utf8');
-    console.log('💾 Données SAML sauvegardées dans:', filePath);
+    
+    logger.log(`\n${'='.repeat(60)}`);
+    logger.log(`💾 SESSION SAML SAUVEGARDÉE:`);
+    logger.log(`   Utilisateur: ${sessionData.user?.name || 'inconnu'}`);
+    logger.log(`   Chemin: ${filePath}`);
+    logger.log(`   Taille: ${JSON.stringify(sessionData).length} bytes`);
+    logger.log(`${'='.repeat(60)}\n`);
     
     return { success: true };
   } catch (err) {
-    console.error('❌ Erreur lors de la sauvegarde de la session:', err.message);
+    logger.error(`❌ Erreur lors de la sauvegarde de la session SAML: ${err.message}`);
+    logger.error(`   Stack: ${err.stack}`);
     return { success: false, error: err.message };
   }
 });
@@ -339,17 +386,24 @@ ipcMain.handle('auth:get-session', async (event) => {
   try {
     const filePath = getSessionFilePath();
     
+    logger.log(`\n${'='.repeat(60)}`);
+    logger.log(`🔍 VÉRIFICATION SESSION SAML:`);
+    logger.log(`   Cherche à: ${filePath}`);
+    
     if (!fs.existsSync(filePath)) {
-      console.log('ℹ️ Fichier de session non trouvé:', filePath);
+      logger.log(`   ❌ Fichier non trouvé`);
+      logger.log(`${'='.repeat(60)}\n`);
       return { success: false, exists: false };
     }
     
     const content = fs.readFileSync(filePath, 'utf8');
     const sessionData = JSON.parse(content);
     
-    console.log('✅ Données SAML récupérées depuis:', filePath);
-    console.log('   User:', sessionData.user?.name);
-    console.log('   Config keys:', Object.keys(sessionData.config || {}).length);
+    logger.log(`   ✅ Fichier trouvé`);
+    logger.log(`   Utilisateur: ${sessionData.user?.name || 'inconnu'}`);
+    logger.log(`   Timestamp: ${new Date(sessionData.timestamp).toLocaleString()}`);
+    logger.log(`   Config keys: ${Object.keys(sessionData.config || {}).join(', ')}`);
+    logger.log(`${'='.repeat(60)}\n`);
     
     return { 
       success: true, 
@@ -359,7 +413,7 @@ ipcMain.handle('auth:get-session', async (event) => {
       timestamp: sessionData.timestamp
     };
   } catch (err) {
-    console.error('❌ Erreur lors de la lecture de la session:', err.message);
+    logger.error(`❌ Erreur lors de la lecture de la session SAML: ${err.message}`);
     return { success: false, exists: false, error: err.message };
   }
 });
@@ -376,12 +430,17 @@ ipcMain.handle('auth:get-session', async (event) => {
  */
 ipcMain.handle('auth:clear-session', async (event) => {
   try {
+    logger.log(`\n${'='.repeat(60)}`);
+    logger.log(`🚪 LOGOUT COMPLET:`);
+    
     // Supprimer le fichier de session SAML
     const filePath = getSessionFilePath();
     
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      console.log('🗑️ Fichier de session supprimé:', filePath);
+      logger.log(`   ✅ Fichier de session supprimé: ${filePath}`);
+    } else {
+      logger.log(`   ℹ️ Fichier de session non trouvé: ${filePath}`);
     }
     
     // Effacer TOUTES les données persistées de la session Electron
@@ -399,15 +458,16 @@ ipcMain.handle('auth:clear-session', async (event) => {
           'serviceworkers' // Service Workers
         ]
       });
-      console.log('🧹 Toutes les données de session Electron effacées');
+      logger.log(`   ✅ Données Electron effacées (cookies, cache, indexedDB, etc.)`);
     } catch (sessionErr) {
-      console.warn('⚠️ Erreur lors du clearStorageData:', sessionErr.message);
+      logger.warn(`   ⚠️ Erreur lors du nettoyage: ${sessionErr.message}`);
       // Continuer même si ça échoue
     }
     
+    logger.log(`${'='.repeat(60)}\n`);
     return { success: true };
   } catch (err) {
-    console.error('❌ Erreur lors de la suppression de la session:', err.message);
+    logger.error(`❌ Erreur lors de la suppression de la session: ${err.message}`);
     return { success: false, error: err.message };
   }
 });
