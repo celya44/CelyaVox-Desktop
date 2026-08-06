@@ -232,7 +232,134 @@ module.exports = {
   // Exposer les paramètres UI
   ui: mergedConfig.ui || currentConfig.ui,
   // Exposer les paramètres Audio
-  audio: mergedConfig.audio || currentConfig.audio
+  audio: mergedConfig.audio || currentConfig.audio,
+  // Exporter une fonction pour recharger la config (sera appelée depuis main.js après app.whenReady())
+  reloadConfig: function(appPath, resourcesPath) {
+    // Mettre à jour les chemins de recherche avec les données d'Electron disponibles
+    const updatedPaths = [];
+    
+    // Priorité 1: Répertoire d'installation (bundle app)
+    if (resourcesPath) {
+      updatedPaths.push(path.join(resourcesPath, 'resources', 'config.ini'));
+      updatedPaths.push(path.join(resourcesPath, 'config.ini'));
+    }
+    if (appPath) {
+      updatedPaths.push(path.join(appPath, 'resources', 'config.ini'));
+      updatedPaths.push(path.join(appPath, 'config.ini'));
+    }
+    
+    // Priorité 2: Répertoire utilisateur (userData)
+    if (process.env.CELYAVOX_USER_CONFIG_PATH) {
+      updatedPaths.push(process.env.CELYAVOX_USER_CONFIG_PATH);
+    }
+    
+    const homeDir = process.env.HOME || process.env.USERPROFILE;
+    if (homeDir) {
+      if (environment === 'dev') {
+        if (process.platform === 'linux') {
+          updatedPaths.push(path.join(homeDir, '.config', 'CelyaVox-dev', 'config.ini'));
+        } else if (process.platform === 'darwin') {
+          updatedPaths.push(path.join(homeDir, 'Library', 'Application Support', 'CelyaVox-dev', 'config.ini'));
+        } else if (process.platform === 'win32') {
+          const appData = process.env.APPDATA || homeDir;
+          updatedPaths.push(path.join(appData, 'CelyaVox-dev', 'config.ini'));
+        }
+      } else {
+        if (process.platform === 'linux') {
+          updatedPaths.push(path.join(homeDir, '.config', 'CelyaVox', 'config.ini'));
+        } else if (process.platform === 'darwin') {
+          updatedPaths.push(path.join(homeDir, 'Library', 'Application Support', 'CelyaVox', 'config.ini'));
+        } else if (process.platform === 'win32') {
+          const appData = process.env.APPDATA || homeDir;
+          updatedPaths.push(path.join(appData, 'CelyaVox', 'config.ini'));
+        }
+      }
+    }
+    
+    // Charger le fichier config.ini depuis les chemins mis à jour
+    console.log(`\n🔄 RECHARGEMENT CONFIG.INI APRÈS ELECTRON READY`);
+    console.log(`🔍 Chemins à tester:`);
+    updatedPaths.forEach((p, i) => console.log(`  ${i + 1}. ${p}`));
+    
+    let foundConfig = null;
+    for (const configPath of updatedPaths) {
+      if (fs.existsSync(configPath)) {
+        try {
+          const iniContent = fs.readFileSync(configPath, 'utf-8');
+          foundConfig = ini.parse(iniContent);
+          console.log(`✅ Config INI RECHARGÉE depuis: ${configPath}`);
+          
+          // Fusionner la nouvelle config
+          this._remergeConfig(foundConfig);
+          return;
+        } catch (err) {
+          console.error(`❌ Erreur lors de la lecture de config.ini: ${err.message}`);
+        }
+      }
+    }
+    
+    if (!foundConfig) {
+      console.log(`⚠️  Aucun config.ini trouvé aux chemins attendus`);
+    }
+  },
+  // Fonction interne pour refusionner la config
+  _remergeConfig: function(newIniConfig) {
+    iniConfig = newIniConfig;
+    
+    // Re-fusionner avec la config par défaut
+    if (iniConfig.window) {
+      if (iniConfig.window.width) {
+        mergedConfig.window.width = parseInt(iniConfig.window.width, 10) || currentConfig.window.width;
+      }
+      if (iniConfig.window.height) {
+        mergedConfig.window.height = parseInt(iniConfig.window.height, 10) || currentConfig.window.height;
+      }
+    }
+    
+    if (iniConfig.ui) {
+      if (iniConfig.ui.disableBuddies !== undefined) {
+        mergedConfig.ui.disableBuddies = iniConfig.ui.disableBuddies === '1' || iniConfig.ui.disableBuddies === true;
+      }
+      if (iniConfig.ui.disableDoNotDisturb !== undefined) {
+        mergedConfig.ui.disableDoNotDisturb = iniConfig.ui.disableDoNotDisturb === '1' || iniConfig.ui.disableDoNotDisturb === true;
+      }
+      if (iniConfig.ui.disableCallForward !== undefined) {
+        mergedConfig.ui.disableCallForward = iniConfig.ui.disableCallForward === '1' || iniConfig.ui.disableCallForward === true;
+      }
+      if (iniConfig.ui.disableGUISipAccount !== undefined) {
+        mergedConfig.ui.disableGUISipAccount = iniConfig.ui.disableGUISipAccount === '1' || iniConfig.ui.disableGUISipAccount === true;
+      }
+    }
+    
+    if (iniConfig.audio) {
+      if (iniConfig.audio.ringerOutputLabel !== undefined) {
+        mergedConfig.audio.ringerOutputLabel = iniConfig.audio.ringerOutputLabel || null;
+      }
+      if (iniConfig.audio.ringerGain !== undefined) {
+        const gain = parseFloat(iniConfig.audio.ringerGain);
+        if (isFinite(gain)) {
+          mergedConfig.audio.ringerGain = Math.min(Math.max(gain, 0), 1);
+        }
+      }
+    }
+    
+    if (iniConfig.server) {
+      if (iniConfig.server.serverUrl) {
+        mergedConfig.serverUrl = iniConfig.server.serverUrl;
+      }
+    }
+    
+    if (iniConfig.app) {
+      if (iniConfig.app.appName) {
+        mergedConfig.appName = iniConfig.app.appName;
+      }
+      if (iniConfig.app.appId) {
+        mergedConfig.appId = iniConfig.app.appId;
+      }
+    }
+    
+    console.log(`📋 Configuration refusionnée avec succès`);
+  }
 };
 
 console.log(`

@@ -1,7 +1,7 @@
 /**
  * Logger - Système de journalisation dans un fichier
- * Redirige console.log, console.error, etc. vers un fichier de log
- * Le fichier est réinitialisé à chaque démarrage de l'application
+ * Redirige console.log, console.error, etc. vers un fichier de log unique
+ * Le fichier est écrasé à chaque démarrage de l'application
  */
 
 const fs = require('fs');
@@ -10,11 +10,8 @@ const path = require('path');
 class Logger {
   constructor(logDir) {
     this.logDir = logDir;
-    // Créer un nom de fichier avec timestamp complet pour chaque démarrage
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toISOString().split('T')[1].replace(/:/g, '-').split('.')[0];
-    this.logFile = path.join(logDir, `celyavox-${dateStr}_${timeStr}.log`);
+    // Nom de fichier fixe - toujours le même
+    this.logFile = path.join(logDir, 'debug.log');
     
     // Créer le répertoire de logs s'il n'existe pas
     if (!fs.existsSync(this.logDir)) {
@@ -25,8 +22,17 @@ class Logger {
       }
     }
     
-    // Initialiser le fichier de log (créer vierge)
-    this._writeToFile(`\n${'='.repeat(80)}\n🚀 Application démarrée à ${new Date().toISOString()}\n${'='.repeat(80)}\n`);
+    // Initialiser le fichier de log (écraser le fichier existant)
+    this._initializeFile();
+  }
+
+  _initializeFile() {
+    try {
+      // Écraser le fichier avec un nouveau contenu
+      fs.writeFileSync(this.logFile, `\n${'='.repeat(80)}\n🚀 Application démarrée à ${new Date().toISOString()}\n${'='.repeat(80)}\n`, 'utf-8');
+    } catch (err) {
+      console.error(`Erreur initialisation fichier log: ${err.message}`);
+    }
   }
 
   _getTimestamp() {

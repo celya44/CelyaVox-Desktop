@@ -51,24 +51,88 @@ let authWindow = null;
 function setupUserDataPath() {
   // APP_ENV a déjà été défini au-dessus
   const isDev = process.env.APP_ENV === 'dev';
+  const platform = process.platform;
+  const appName = isDev ? 'CelyaVox-dev' : 'CelyaVox';
   
-  // Construire le path directement avec la casse correcte
-  // Ne pas dépendre de app.getPath('userData') qui applique les conventions Linux (minuscules)
   let userDataPath;
   
-  if (isDev) {
-    // Dev: ~/.config/CelyaVox-dev
-    userDataPath = path.join(app.getPath('home'), '.config', 'CelyaVox-dev');
+  if (platform === 'win32') {
+    // Windows: %APPDATA%\CelyaVox ou %APPDATA%\CelyaVox-dev
+    const appData = process.env.APPDATA || path.join(app.getPath('home'), 'AppData', 'Roaming');
+    userDataPath = path.join(appData, appName);
+  } else if (platform === 'darwin') {
+    // macOS: ~/Library/Application Support/CelyaVox
+    userDataPath = path.join(app.getPath('home'), 'Library', 'Application Support', appName);
   } else {
-    // Prod: ~/.config/CelyaVox
-    userDataPath = path.join(app.getPath('home'), '.config', 'CelyaVox');
+    // Linux et autres: ~/.config/CelyaVox
+    userDataPath = path.join(app.getPath('home'), '.config', appName);
   }
   
   globalUserDataPath = userDataPath;
   app.setPath('userData', userDataPath);
   
   console.log(`🔧 userData défini: ${userDataPath}`);
+  console.log(`   Plateforme: ${platform}`);
   console.log(`   Environnement: ${isDev ? 'DEV' : 'PROD'}`);
+}
+
+// ============================================================
+// Vérifier l'état du fichier sso.ini
+// ============================================================
+function verifySSOStatus() {
+  const fs = require('fs');
+  const path = require('path');
+  
+  // Chercher sso.ini dans : resourcesPath → __dirname → user directory
+  const resourcesPath = process.resourcesPath;
+  const searchPaths = [];
+  
+  if (resourcesPath) {
+    searchPaths.push(path.join(resourcesPath, 'sso.ini'));
+  }
+  
+  // Dans le bundle Electron, __dirname est le répertoire de la ressource
+  searchPaths.push(path.join(__dirname, '..', 'sso.ini'));
+  searchPaths.push(path.join(__dirname, 'sso.ini'));
+  
+  // Répertoire utilisateur
+  searchPaths.push(path.join(globalUserDataPath, 'sso.ini'));
+  
+  // Afficher la recherche
+  logger.log(`\n🔍 Recherche de sso.ini:`);
+  
+  // Vérifier chaque chemin
+  for (let i = 0; i < searchPaths.length; i++) {
+    const filePath = searchPaths[i];
+    const exists = fs.existsSync(filePath);
+    const status = exists ? '✅' : '❌';
+    logger.log(`   ${status} [${i + 1}/${searchPaths.length}] ${filePath}`);
+    
+    if (exists) {
+      // Vérifier si le fichier est configuré (pas vide ni commenté)
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const hasConfig = content.split('\n').some(line => {
+        const trimmed = line.trim();
+        return trimmed && !trimmed.startsWith(';') && !trimmed.startsWith('#');
+      });
+      
+      logger.log(`       → Configuré: ${hasConfig ? '✅ OUI' : '⚠️ NON (vide ou commenté)'}`);
+      
+      return {
+        exists: true,
+        path: filePath,
+        configured: hasConfig
+      };
+    }
+  }
+  
+  logger.log(`   ❌ Aucun fichier trouvé\n`);
+  
+  return {
+    exists: false,
+    path: searchPaths[searchPaths.length - 1],
+    configured: false
+  };
 }
 
 // ============================================================
@@ -1606,6 +1670,10 @@ logger.log(`   Fichier de log: ${logger.getLogFilePath()}`);
 // App ready
 // ----------------------
 app.whenReady().then(async () => {
+  // Recharger la configuration maintenant qu'Electron est prêt
+  // Cela permet de chercher dans le répertoire d'installation
+  config.reloadConfig(app.getAppPath(), process.resourcesPath);
+  
   // Afficher la configuration chargée
   logger.log(`\n${'='.repeat(60)}`);
   logger.log(`📋 CONFIGURATION CHARGÉE:`);
@@ -1619,6 +1687,10 @@ app.whenReady().then(async () => {
   if (Object.keys(config._iniConfig).length > 0) {
     logger.log(`   Fichier INI chargé avec: ${JSON.stringify(config._iniConfig)}`);
   }
+  logger.log(`${'='.repeat(60)}\n`);
+  
+  // Vérifier et afficher l'état de sso.ini
+  const ssoStatus = verifySSOStatus();
   logger.log(`${'='.repeat(60)}\n`);
   
   // Réinitialiser le fichier config si nécessaire

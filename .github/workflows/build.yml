@@ -187,16 +187,6 @@ jobs:
         run: npm run dist:linux:dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build for Windows (dev)
-        if: matrix.platform == 'windows'
-        run: npm run dist:win:dev
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CS_PFX_PATH: ${{ github.workspace }}\ci-selfsigned.pfx
-          CS_PFX_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-          CSC_LINK: ${{ github.workspace }}\ci-selfsigned.pfx
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Verify Windows signatures
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -217,24 +207,6 @@ jobs:
           }
           Get-ChildItem -Path dist -Filter *.exe | ForEach-Object { & $signtool verify /pa /v $_.FullName }
           Get-ChildItem -Path dist -Filter *.msi | ForEach-Object { & $signtool verify /pa /v $_.FullName }
-      - name: Build for macOS (dev)
-        if: matrix.platform == 'mac'
-        run: |
-          echo "NOTARIZATION_TRANSIENT_FAILURE=0" >> "$GITHUB_ENV"
-          echo "NOTARIZATION_STATUS=starting" >> "$GITHUB_ENV"
-          npm run dist:mac:dev
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ env.MAC_CERTIFICATE_PATH }}
-          CSC_KEY_PASSWORD: ${{ env.MAC_CERTIFICATE_PASSWORD_CLEAN }}
-          CSC_NAME: ${{ secrets.MAC_CERTIFICATE_NAME }}
-          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
-          NOTARIZE_APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NOTARIZE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
-          NOTARIZE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          NOTARIZE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          NOTARIZE_MAX_ATTEMPTS: "1"
       - name: Staple, verify and summarize macOS artifacts
         if: matrix.platform == 'mac'
         shell: bash

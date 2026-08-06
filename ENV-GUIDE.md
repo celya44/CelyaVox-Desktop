@@ -44,12 +44,6 @@ Génère : `celyavox-1.0.3.AppImage`, `celyavox_1.0.3_amd64.deb`, etc.
 
 ### Construire pour Windows
 
-**Mode développement :**
-```bash
-npm run dist:win:dev
-```
-Génère : `celyavox-dev-1.0.3.exe`
-
 **Mode production :**
 ```bash
 npm run dist:win:prod
@@ -58,15 +52,12 @@ Génère : `celyavox-1.0.3.exe`
 
 ### Construire pour toutes les plateformes
 
-**Mode développement :**
-```bash
-npm run dist:all:dev
-```
-
 **Mode production :**
 ```bash
 npm run dist:all:prod
 ```
+
+**Note :** Les versions de développement ne sont disponibles que pour Linux. Utilisez `npm start:dev` pour développer localement.
 
 ## Modifier l'environnement par défaut
 

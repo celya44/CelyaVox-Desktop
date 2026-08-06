@@ -145,7 +145,7 @@ Ajoutez ces secrets :
 
 ### Activation dans GitHub Actions
 
-Le fichier `.github/workflows/build.yml` est deja configure pour utiliser automatiquement ces secrets sur les jobs macOS (`dist:mac:prod` et `dist:mac:dev`).
+Le fichier `.github/workflows/build.yml` est deja configure pour utiliser automatiquement ces secrets sur les jobs macOS (`dist:mac:prod`).
 
 Variables injectees dans le job macOS :
 
