@@ -1441,9 +1441,36 @@ ipcMain.handle('check-sso-file', async (event) => {
     }
     
     console.log('[DEBUG] globalUserDataPath:', globalUserDataPath);
-    const ssoFilePath = path.join(globalUserDataPath, 'sso.ini');
-    console.log('[DEBUG] Chemin sso.ini:', ssoFilePath);
-    const exists = fs.existsSync(ssoFilePath);
+    
+    // Chercher sso.ini d'abord dans le répertoire d'installation, puis dans le répertoire utilisateur
+    const possibleSsoConfigPaths = [
+      path.join(app.getAppPath(), 'sso.ini'),
+      path.join(app.getAppPath(), 'resources', 'sso.ini'),
+      path.join(process.resourcesPath || __dirname, 'sso.ini'),
+      path.join(process.resourcesPath || __dirname, 'resources', 'sso.ini'),
+      path.join(__dirname, 'sso.ini'),
+      path.join(__dirname, 'resources', 'sso.ini'),
+      path.join(globalUserDataPath, 'sso.ini'),
+    ];
+    
+    let ssoFilePath = null;
+    let exists = false;
+    
+    for (const p of possibleSsoConfigPaths) {
+      if (fs.existsSync(p)) {
+        ssoFilePath = p;
+        exists = true;
+        console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);
+        break;
+      }
+    }
+    
+    if (!ssoFilePath) {
+      ssoFilePath = path.join(globalUserDataPath, 'sso.ini');
+      console.log(`ℹ️ Aucun fichier sso.ini trouvé, chemin par défaut: ${ssoFilePath}`);
+    }
+    
+    console.log('[DEBUG] Chemin sso.ini utilisé:', ssoFilePath);
     console.log('[DEBUG] Fichier existe?', exists);
     
     let configured = false;

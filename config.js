@@ -16,17 +16,26 @@ const environment = process.env.APP_ENV || packageJson.config?.environment || 'd
 let iniConfig = {};
 
 // Déterminer le chemin du fichier config.ini
-// En développement: ./config.ini à la racine
-// En production: userDataPath/config.ini (déterminé à partir des chemins standards)
+// Ordre de priorité:
+// 1. Répertoire d'installation (bundle app) - pour déploiements centralisés
+// 2. Répertoire utilisateur (userData) - pour personnalisation utilisateur
+// 3. Chemins de développement
 const getConfigPath = () => {
   const configPaths = [];
   
-  // Vérifier d'abord si main.js a défini l'env var (pour production après app.whenReady())
+  // Priorité 1: Répertoire d'installation (bundle app)
+  if (process.resourcesPath) {
+    configPaths.push(path.join(process.resourcesPath, 'resources', 'config.ini'));
+    configPaths.push(path.join(process.resourcesPath, 'config.ini'));
+  }
+  configPaths.push(path.join(__dirname, 'resources', 'config.ini'));
+  configPaths.push(path.join(__dirname, 'config.ini'));
+  
+  // Priorité 2: Répertoire utilisateur (userData)
   if (process.env.CELYAVOX_USER_CONFIG_PATH) {
     configPaths.push(process.env.CELYAVOX_USER_CONFIG_PATH);
   }
   
-  // Chemins userData standardisés (pour dev ET prod)
   const homeDir = process.env.HOME || process.env.USERPROFILE;
   if (homeDir) {
     if (environment === 'dev') {
@@ -50,17 +59,9 @@ const getConfigPath = () => {
     }
   }
   
-  // Développement: chercher dans resources/, config/ ou à la racine du projet
+  // Priorité 3: Chemins de développement
   if (environment === 'dev') {
-    configPaths.push(path.join(__dirname, 'resources', 'config.ini'));
     configPaths.push(path.join(__dirname, 'config', 'config.ini'));
-    configPaths.push(path.join(__dirname, 'config.ini'));
-  }
-  
-  // Fallback: chercher dans le bundle app
-  if (process.resourcesPath) {
-    configPaths.push(path.join(process.resourcesPath, 'resources', 'config.ini'));
-    configPaths.push(path.join(process.resourcesPath, 'config.ini'));
   }
   
   return configPaths;
