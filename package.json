@@ -73,6 +73,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "logger.js",
       "loading.html",
       "notification-call.html",
       "enable-text-selection.css",

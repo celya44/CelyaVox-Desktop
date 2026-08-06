@@ -20,7 +20,7 @@
 const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, Notification, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const Logger = require('./logger');
+const Logger = require(path.join(__dirname, 'logger'));
 
 // ============================================================
 // ÉTAPE 1: Définir APP_ENV TRÈS TÔT avant tout autre code
