@@ -20,6 +20,7 @@
 const { app, BrowserWindow, ipcMain, dialog, session, Tray, Menu, nativeImage, Notification, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const Logger = require('./logger');
 
 // ============================================================
 // ÉTAPE 1: Définir APP_ENV TRÈS TÔT avant tout autre code
@@ -1467,18 +1468,16 @@ ipcMain.handle('check-sso-file', async (event) => {
     
     if (!ssoFilePath) {
       ssoFilePath = path.join(globalUserDataPath, 'sso.ini');
-      console.log(`ℹ️ Aucun fichier sso.ini trouvé, chemin par défaut: ${ssoFilePath}`);
+      console.log(`ℹ️ Aucun fichier sso.ini trouvé aux chemins attendus.`);
+      console.log(`   Chemins testés:`);
+      possibleSsoConfigPaths.forEach((p, i) => console.log(`     ${i + 1}. ${p}`));
     }
-    
-    console.log('[DEBUG] Chemin sso.ini utilisé:', ssoFilePath);
-    console.log('[DEBUG] Fichier existe?', exists);
     
     let configured = false;
     if (exists) {
-      console.log(`✅ Fichier sso.ini trouvé: ${ssoFilePath}`);
+      console.log(`\n📖 VÉRIFICATION SSO - Fichier trouvé: ${ssoFilePath}`);
       try {
         const content = fs.readFileSync(ssoFilePath, 'utf-8');
-        console.log('[DEBUG] Contenu sso.ini (premiers 500 chars):', content.substring(0, 500));
         
         // Vérifier que le fichier contient une configuration SAML valide
         // (pas juste vide ou commenté)
@@ -1492,7 +1491,6 @@ ipcMain.handle('check-sso-file', async (event) => {
           // Vérifier section [SAML]
           if (trimmed === '[SAML]' || trimmed === '[saml]') {
             inSamlSection = true;
-            console.log('[DEBUG] Section [SAML] trouvée');
             continue;
           }
           
@@ -1508,7 +1506,7 @@ ipcMain.handle('check-sso-file', async (event) => {
               const [key, value] = trimmed.split('=', 2);
               if (key.trim() && value.trim()) {
                 hasConfiguration = true;
-                console.log(`[DEBUG] Configuration trouvée: ${key.trim()}=${value.trim()}`);
+                console.log(`   ✅ Paramètre trouvé: ${key.trim()}`);
                 break; // Une seule config suffit pour dire que SAML est configuré
               }
             }
@@ -1516,13 +1514,17 @@ ipcMain.handle('check-sso-file', async (event) => {
         }
         
         configured = hasConfiguration;
-        console.log(`[DEBUG] SAML configuré? ${configured}`);
+        if (configured) {
+          console.log(`✅ SAML EST CONFIGURÉ dans ${ssoFilePath}`);
+        } else {
+          console.log(`⚠️  SAML NON CONFIGURÉ - Fichier présent mais vide ou commenté`);
+        }
       } catch (e) {
-        console.warn('[DEBUG] Impossible de lire le contenu:', e.message);
+        console.error(`❌ Erreur lecture sso.ini: ${e.message}`);
         configured = false;
       }
     } else {
-      console.log(`ℹ️ Fichier sso.ini non trouvé: ${ssoFilePath}`);
+      console.log(`⚠️  Fichier sso.ini NON TROUVÉ - SSO désactivé`);
     }
     
     return { exists, configured, path: ssoFilePath };
@@ -1589,15 +1591,41 @@ ipcMain.handle('init-saml-auth', async (event) => {
 // ============================================================
 setupUserDataPath();
 
+// ============================================================
+// Initialiser le système de logging
+// ============================================================
+const logDir = path.join(globalUserDataPath, 'logs');
+const logger = new Logger(logDir);
+
+logger.log(`🚀 Application démarrée`);
+logger.log(`   Environnement: ${process.env.APP_ENV === 'dev' ? 'DEV' : 'PROD'}`);
+logger.log(`   Répertoire utilisateur: ${globalUserDataPath}`);
+logger.log(`   Fichier de log: ${logger.getLogFilePath()}`);
+
 // ----------------------
 // App ready
 // ----------------------
 app.whenReady().then(async () => {
+  // Afficher la configuration chargée
+  logger.log(`\n${'='.repeat(60)}`);
+  logger.log(`📋 CONFIGURATION CHARGÉE:`);
+  logger.log(`   Server URL: ${config.serverUrl}`);
+  logger.log(`   App Name: ${config.appName}`);
+  logger.log(`   App ID: ${config.appId}`);
+  logger.log(`   Window: ${config.window?.width || 1280}x${config.window?.height || 820}`);
+  logger.log(`   UI - disableBuddies: ${config.ui?.disableBuddies || false}`);
+  logger.log(`   UI - disableDoNotDisturb: ${config.ui?.disableDoNotDisturb || false}`);
+  logger.log(`   Audio - ringerGain: ${config.audio?.ringerGain || 1.0}`);
+  if (Object.keys(config._iniConfig).length > 0) {
+    logger.log(`   Fichier INI chargé avec: ${JSON.stringify(config._iniConfig)}`);
+  }
+  logger.log(`${'='.repeat(60)}\n`);
+  
   // Réinitialiser le fichier config si nécessaire
   try {
     initializeConfigFile();
   } catch (err) {
-    console.error(`❌ Erreur lors de l'initialisation du config.ini: ${err.message}`);
+    logger.error(`❌ Erreur lors de l'initialisation du config.ini: ${err.message}`);
   }
   
   registerTelProtocolClient();
