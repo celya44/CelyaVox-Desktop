@@ -148,12 +148,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "msi",
-          "arch": [
-            "x64"
-          ]
         }
       ]
     },
@@ -170,7 +164,7 @@
       "artifactName": "${productName}-${version}.${ext}",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "perMachine": false,
+      "perMachine": true,
       "runAfterFinish": true
     },
     "mac": {
